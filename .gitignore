@@ -1,0 +1,17 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.env
+.vscode
+postgres_data
+ollama_data
+qdrant_data
+.ruff_cache
+README_deleted.md
