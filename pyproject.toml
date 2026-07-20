@@ -1,0 +1,29 @@
+[project]
+name = "skillpolaris"
+version = "0.1.0"
+description = "SkillPolaris monorepo"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "pipeline",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.8",
+]
+
+[tool.uv.workspace]
+members = ["apps/pipeline", "apps/api"]
+
+[tool.uv.sources]
+pipeline = { workspace = true }
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
