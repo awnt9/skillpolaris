@@ -1,11 +1,14 @@
 from abc import ABC, abstractmethod
 import requests
-from pipeline.extract.models import JobRoomSwissRequestTemplate,FranceTravailRequestTemplate,USAJOBSRequestTemplate
+from pipeline.extract.models import (
+    FranceTravailRequestTemplate,
+    JobRoomSwissRequestTemplate,
+    StagedJobOffer,
+    USAJOBSRequestTemplate,
+)
 from json import JSONDecodeError
 from requests import RequestException
 from functools import wraps
-import os
-from dotenv import load_dotenv
 from rich import print
 
 def handle_api_errors(func):
@@ -40,20 +43,34 @@ class BaseExtractor(ABC):
         self.session = requests.Session()
         self.configuration = configuration
 
+    @property
     @abstractmethod
-    def get_ids(self):
+    def source_name(self):
+        """Stable source identifier stored in staging."""
+        pass
+
+    @abstractmethod
+    def search_ids(self):
         """Method wich gets ids from job offers"""
         pass
 
     @abstractmethod
-    def get_detail(self):
+    def fetch_detail(self):
         """Method wich gets details from a job offer with a specific ID"""
         pass
 
+    @abstractmethod
+    def to_staged_job(self, raw_detail, keyword=None):
+        """Maps source-specific payloads into a canonical staging record."""
+        pass
+
 class SwissJobRoomExtractor(BaseExtractor):
+    @property
+    def source_name(self):
+        return "swiss_job_room"
 
     @handle_api_errors
-    def get_ids(self, keyword, page):
+    def search_ids(self, keyword, page):
         url = f"https://www.job-room.ch/jobadservice/api/jobAdvertisements/_search?size=15&page={page}"
         payload = JobRoomSwissRequestTemplate(keywords=[keyword]).model_dump()
         self.session.headers.update({
@@ -71,7 +88,7 @@ class SwissJobRoomExtractor(BaseExtractor):
         return found_ids
 
     @handle_api_errors
-    def get_detail(self, job_id):
+    def fetch_detail(self, job_id):
         url = f"https://www.job-room.ch/jobadservice/api/jobAdvertisements/{job_id}"
 
         res = self.session.get(url, timeout=10)
@@ -80,7 +97,25 @@ class SwissJobRoomExtractor(BaseExtractor):
         if res.status_code == 204:
             return None
         
-        return res.text
+        return res.json()
+
+    def to_staged_job(self, raw_detail, keyword=None):
+        job_description = raw_detail["jobContent"]["jobDescriptions"][0]
+        company = raw_detail.get("company", {})
+        location = raw_detail.get("jobLocation", {})
+
+        return StagedJobOffer(
+            source=self.source_name,
+            external_id=str(raw_detail["id"]),
+            keyword=keyword,
+            title_raw=job_description["title"],
+            description_raw=job_description["description"],
+            url=raw_detail.get("url"),
+            company_raw=company.get("name"),
+            location_raw=location.get("city") or location.get("postalCode"),
+            posted_at_raw=raw_detail.get("publicationDate"),
+            raw_payload=raw_detail,
+        )
             
 class FranceTravailExtractor(BaseExtractor):
     def __init__(self,configuration):
@@ -92,6 +127,10 @@ class FranceTravailExtractor(BaseExtractor):
         self.session.headers.update({
             "Authorization": f"Bearer {self.access_token}"
             })
+
+    @property
+    def source_name(self):
+        return "france_travail"
 
     def _get_access_token(self):
         url = "https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=/partenaire"
@@ -119,7 +158,7 @@ class FranceTravailExtractor(BaseExtractor):
             print(e)
             
     @handle_api_errors
-    def get_ids(self, keyword, page):
+    def search_ids(self, keyword, page):
         url = "https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search"
         range = f"{20*page}-{20*page+19}"
         params = FranceTravailRequestTemplate(motsCles=keyword,range=range).model_dump(exclude_none=True)
@@ -139,7 +178,7 @@ class FranceTravailExtractor(BaseExtractor):
             return [item['id'] for item in data.get('resultats', [])]
 
     @handle_api_errors
-    def get_detail(self, job_id):
+    def fetch_detail(self, job_id):
         url = f"https://api.francetravail.io/partenaire/offresdemploi/v2/offres/{job_id}"
 
         res = self.session.get(url, timeout=10)
@@ -147,7 +186,24 @@ class FranceTravailExtractor(BaseExtractor):
         
         if res.status_code == 204:
             return None
-        return res.text
+        return res.json()
+
+    def to_staged_job(self, raw_detail, keyword=None):
+        location = raw_detail.get("lieuTravail", {})
+        company = raw_detail.get("entreprise", {})
+
+        return StagedJobOffer(
+            source=self.source_name,
+            external_id=str(raw_detail["id"]),
+            keyword=keyword,
+            title_raw=raw_detail["intitule"],
+            description_raw=raw_detail["description"],
+            url=raw_detail.get("origineOffre", {}).get("urlOrigine"),
+            company_raw=company.get("nom"),
+            location_raw=location.get("libelle"),
+            posted_at_raw=raw_detail.get("dateCreation"),
+            raw_payload=raw_detail,
+        )
         
 class USAJOBExtractor(BaseExtractor):
     def __init__(self,configuration):
@@ -162,8 +218,12 @@ class USAJOBExtractor(BaseExtractor):
             "Accept": "application/json"
         })
 
+    @property
+    def source_name(self):
+        return "usajobs"
+
     @handle_api_errors
-    def get_ids(self, keyword, page):
+    def search_ids(self, keyword, page):
         url = "https://data.usajobs.gov/api/search"
         params = USAJOBSRequestTemplate(
             Keyword=keyword, 
@@ -181,7 +241,7 @@ class USAJOBExtractor(BaseExtractor):
         return found_ids
     
     @handle_api_errors
-    def get_detail(self, job_id):
+    def fetch_detail(self, job_id):
         url = "https://data.usajobs.gov/api/search"
         params = USAJOBSRequestTemplate(
             Keyword=job_id
@@ -191,5 +251,23 @@ class USAJOBExtractor(BaseExtractor):
         res.raise_for_status()
         if res.status_code == 204:
             return None
-        return res.text
-            
+        return res.json()
+
+    def to_staged_job(self, raw_detail, keyword=None):
+        descriptor = raw_detail["SearchResult"]["SearchResultItems"][0]["MatchedObjectDescriptor"]
+        position_locations = descriptor.get("PositionLocation", [])
+        organization = descriptor.get("OrganizationName")
+        apply_uri = descriptor.get("PositionURI")
+
+        return StagedJobOffer(
+            source=self.source_name,
+            external_id=str(descriptor["PositionID"]),
+            keyword=keyword,
+            title_raw=descriptor["PositionTitle"],
+            description_raw=descriptor.get("QualificationSummary") or descriptor.get("UserArea", {}).get("Details", {}).get("JobSummary", ""),
+            url=apply_uri,
+            company_raw=organization,
+            location_raw=position_locations[0].get("LocationName") if position_locations else None,
+            posted_at_raw=descriptor.get("PublicationStartDate"),
+            raw_payload=raw_detail,
+        )

@@ -1,5 +1,6 @@
+from typing import Any, Literal, Optional
+
 from pydantic import BaseModel, Field
-from typing import Optional,Literal
 
 class JobRoomSwissRequestTemplate(BaseModel):
     cantonCodes: list = Field(default_factory=list)
@@ -100,3 +101,16 @@ class USAJOBSRequestTemplate(BaseModel):
     
     # Detail on response
     Fields: Optional[Literal["Min", "Full"]] = "Full"
+
+
+class StagedJobOffer(BaseModel):
+    source: str
+    external_id: str
+    keyword: str | None = None
+    title_raw: str
+    description_raw: str
+    url: str | None = None
+    company_raw: str | None = None
+    location_raw: str | None = None
+    posted_at_raw: str | None = None
+    raw_payload: dict[str, Any]

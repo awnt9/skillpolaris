@@ -1,6 +1,8 @@
 import psycopg2
 from psycopg2.extras import Json, RealDictCursor
 
+from pipeline.extract.models import StagedJobOffer
+
 
 class PostgresManager:
     def __init__(self, configuration):
@@ -87,7 +89,7 @@ class PostgresManager:
             if cursor:
                 cursor.close()
 
-    def save_to_staging(self, source: str, job_id: str, raw_content: object, keyword: str = None):
+    def save_to_staging(self, staged_job: StagedJobOffer):
         """
         Saves raw content from an offer into the table staging.
         """
@@ -100,11 +102,21 @@ class PostgresManager:
                 VALUES (%s, %s, %s, %s)
             """
 
-            cursor.execute(query, (source, job_id, Json(raw_content), keyword))
+            cursor.execute(
+                query,
+                (
+                    staged_job.source,
+                    staged_job.external_id,
+                    Json(staged_job.model_dump()),
+                    staged_job.keyword,
+                ),
+            )
             self.connection.commit()
 
         except psycopg2.Error as e:
-            print(f" ERROR on StagingManager: Could not save on {source}. Cause: {e}")
+            print(
+                f" ERROR on StagingManager: Could not save on {staged_job.source}. Cause: {e}"
+            )
             if self.connection:
                 self.connection.rollback()
 

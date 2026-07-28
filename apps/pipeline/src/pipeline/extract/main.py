@@ -10,6 +10,7 @@ from rich import print
 from pipeline.configuration import configuration
 from pipeline.database.postgres_manager import PostgresManager
 from pipeline.extract.extractors import FranceTravailExtractor, SwissJobRoomExtractor, USAJOBExtractor
+from pipeline.extract.models import StagedJobOffer
 
 
 class StagingJobStore(Protocol):
@@ -25,10 +26,7 @@ class StagingJobStore(Protocol):
 
     def save_to_staging(
         self,
-        source: str,
-        job_id: str,
-        raw_content: object,
-        keyword: str = None,
+        staged_job: StagedJobOffer,
     ):
         ...
 
@@ -92,19 +90,19 @@ def get_all_ids(configuration, keywords, extractors, staging_store: StagingJobSt
             while page < configuration.max_depth:
                 print(
                     f"Searching IDs for keyword {kw} in extractor "
-                    f"{extractor.__class__.__name__} (Page {page})..."
+                    f"{extractor.source_name} (Page {page})..."
                 )
 
-                raw_ids = extractor.get_ids(kw, page)
+                raw_ids = extractor.search_ids(kw, page)
 
                 if not raw_ids:
-                    print(f"No offers found for {kw} in {extractor.__class__.__name__}\n")
+                    print(f"No offers found for {kw} in {extractor.source_name}\n")
                     break
 
                 new_ids = filter_existing_ids(
                     staging_store,
                     raw_ids,
-                    extractor.__class__.__name__,
+                    extractor.source_name,
                 )
 
                 if raw_ids and not new_ids:
@@ -131,7 +129,7 @@ def group_tasks_by_source(all_tasks):
     """
     grouped = {}
     for task in all_tasks:
-        source_name = task["extractor"].__class__.__name__
+        source_name = task["extractor"].source_name
         if source_name not in grouped:
             grouped[source_name] = []
         grouped[source_name].append(task)
@@ -178,17 +176,13 @@ def get_all_details(staging_store: StagingJobStore, all_tasks):
         job_id = str(task["id"])
         kw = task["keyword"]
 
-        print(f"[{i}/{len(all_tasks)}] Extracting {job_id} from {extractor.__class__.__name__}")
+        print(f"[{i}/{len(all_tasks)}] Extracting {job_id} from {extractor.source_name}")
 
         try:
-            detail = extractor.get_detail(job_id)
+            detail = extractor.fetch_detail(job_id)
             if detail:
-                staging_store.save_to_staging(
-                    source=extractor.__class__.__name__,
-                    job_id=job_id,
-                    raw_content=detail,
-                    keyword=kw,
-                )
+                staged_job = extractor.to_staged_job(detail, keyword=kw)
+                staging_store.save_to_staging(staged_job=staged_job)
         except Exception as e:
             print(f"Error extracting {job_id}: {e}")
 
