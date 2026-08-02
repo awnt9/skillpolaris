@@ -26,15 +26,11 @@ def preprocess_job_offer(raw_job: RawJobOffer) -> CleanJobOffer:
     else:
         # Backward compatibility for already staged legacy records.
         match raw_job.source:
-            case "SwissJobRoomExtractor":
-                title = raw_content["jobContent"]["jobDescriptions"][0]["title"]
-                description = raw_content["jobContent"]["jobDescriptions"][0]["description"]
-
-            case "FranceTravailExtractor":
+            case "FranceTravailExtractor" | "france_travail":
                 title = raw_content["intitule"]
                 description = raw_content["description"]
 
-            case "USAJOBExtractor":
+            case "USAJOBExtractor" | "usajobs":
                 descriptor = raw_content["SearchResult"]["SearchResultItems"][0][
                     "MatchedObjectDescriptor"
                 ]

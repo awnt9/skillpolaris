@@ -7,27 +7,22 @@ from typing import Protocol
 import requests
 from rich import print
 
-from pipeline.configuration import configuration
-from pipeline.database.postgres_manager import PostgresManager
-from pipeline.extract.extractors import FranceTravailExtractor, SwissJobRoomExtractor, USAJOBExtractor
-from pipeline.extract.models import StagedJobOffer
+from pipeline.config import get_configuration
+from pipeline.domain.models import RawJobRecord
+from pipeline.extract.sources import FranceTravailExtractor, USAJOBExtractor
+from pipeline.persistence import PostgresManager
 
 
-class StagingJobStore(Protocol):
-    """
-    Storage contract required by the extraction flow.
-    """
+class RawJobStore(Protocol):
+    """Storage contract required by the extraction flow."""
 
-    def count_jobs_by_keyword(self, keywords: list[str]) -> dict[str, int]:
+    def count_raw_jobs_by_keyword(self, keywords: list[str]) -> dict[str, int]:
         ...
 
     def filter_new_job_ids(self, source_name: str, raw_ids: list[str]) -> list[str]:
         ...
 
-    def save_to_staging(
-        self,
-        staged_job: StagedJobOffer,
-    ):
+    def save_raw_job(self, raw_job: RawJobRecord) -> None:
         ...
 
 
@@ -43,9 +38,14 @@ def fetch_titles(num):
         "version": "v1.2.1",
     }
     try:
-        response = requests.get("https://ec.europa.eu/esco/api/resource/concept", params=params)
+        response = requests.get(
+            "https://ec.europa.eu/esco/api/resource/concept", params=params
+        )
         if response.status_code == 200:
-            return [job["title"] for job in response.json()["_links"]["narrowerOccupation"]]
+            return [
+                job["title"]
+                for job in response.json()["_links"]["narrowerOccupation"]
+            ]
     except Exception as e:
         print(e)
     return None
@@ -59,23 +59,20 @@ def get_keywords(group_codes: list[int]) -> list[str]:
     with ThreadPoolExecutor(max_workers=20) as executor:
         results = list(executor.map(fetch_titles, codes))
 
-    nodes = [title for sublist in results if sublist for title in sublist]
-
-    return nodes
+    return [title for sublist in results if sublist for title in sublist]
 
 
-def sort_keywords(keywords: list[str], staging_store: StagingJobStore) -> list[str]:
-    results = staging_store.count_jobs_by_keyword(keywords)
-
+def sort_keywords(keywords: list[str], raw_store: RawJobStore) -> list[str]:
+    results = raw_store.count_raw_jobs_by_keyword(keywords)
     return sorted(keywords, key=lambda kw: results.get(kw, 0))
 
 
-def filter_existing_ids(staging_store: StagingJobStore, raw_ids, source_name):
-    """Checks which IDs already exists in staging to avoid duplicating records."""
-    return staging_store.filter_new_job_ids(source_name, raw_ids)
+def filter_existing_ids(raw_store: RawJobStore, raw_ids, source_name):
+    """Checks which IDs already exist in raw_jobs to avoid duplicating records."""
+    return raw_store.filter_new_job_ids(source_name, raw_ids)
 
 
-def get_all_ids(configuration, keywords, extractors, staging_store: StagingJobStore):
+def get_all_ids(configuration, keywords, extractors, raw_store: RawJobStore):
     all_tasks = []
 
     for kw in keywords:
@@ -100,20 +97,25 @@ def get_all_ids(configuration, keywords, extractors, staging_store: StagingJobSt
                     break
 
                 new_ids = filter_existing_ids(
-                    staging_store,
+                    raw_store,
                     raw_ids,
                     extractor.source_name,
                 )
 
                 if raw_ids and not new_ids:
-                    print(f"Page {page} already indexed. Diving deeper to page {page + 1}...")
+                    print(
+                        f"Page {page} already indexed. Diving deeper to page "
+                        f"{page + 1}..."
+                    )
                     page += 1
                     human_delay(3, 5)
                     continue
 
                 print(f"[blue]Result: {len(new_ids)} found[/]\n")
                 for job_id in new_ids:
-                    all_tasks.append({"id": job_id, "extractor": extractor, "keyword": kw})
+                    all_tasks.append(
+                        {"id": job_id, "extractor": extractor, "keyword": kw}
+                    )
                 break
 
             human_delay(3, 5)
@@ -122,11 +124,6 @@ def get_all_ids(configuration, keywords, extractors, staging_store: StagingJobSt
 
 
 def group_tasks_by_source(all_tasks):
-    """
-    Transforms a list of tasks on a dict grouped by source.
-    input: [{'id': '123', 'extractor': <Obj>}, ...]
-    output: {'SwissJobRoom': [{'id': '123', 'extractor': <Obj>}, ...], 'USAJobs': [...]}
-    """
     grouped = {}
     for task in all_tasks:
         source_name = task["extractor"].source_name
@@ -141,14 +138,13 @@ def group_tasks_by_source(all_tasks):
 
 
 def distribute_tasks(all_ids_by_extractor, configuration):
-    """
-    Takes all_ids_by_extractor dict and reorders it using round robin
-    to alternate sources, respecting maximum resquests budget.
-    """
     final_tasks = []
     sources = list(all_ids_by_extractor.keys())
 
-    while any(all_ids_by_extractor.values()) and len(final_tasks) < configuration.max_total_details:
+    while (
+        any(all_ids_by_extractor.values())
+        and len(final_tasks) < configuration.max_total_details
+    ):
         for source in sources:
             if all_ids_by_extractor[source]:
                 task = all_ids_by_extractor[source].pop(0)
@@ -170,7 +166,7 @@ def print_log_ids_information(all_tasks: list):
     print("-" * 30)
 
 
-def get_all_details(staging_store: StagingJobStore, all_tasks):
+def get_all_details(raw_store: RawJobStore, all_tasks):
     for i, task in enumerate(all_tasks, 1):
         extractor = task["extractor"]
         job_id = str(task["id"])
@@ -181,8 +177,8 @@ def get_all_details(staging_store: StagingJobStore, all_tasks):
         try:
             detail = extractor.fetch_detail(job_id)
             if detail:
-                staged_job = extractor.to_staged_job(detail, keyword=kw)
-                staging_store.save_to_staging(staged_job=staged_job)
+                raw_job = extractor.to_raw_job(detail, keyword=kw)
+                raw_store.save_raw_job(raw_job=raw_job)
         except Exception as e:
             print(f"Error extracting {job_id}: {e}")
 
@@ -190,24 +186,23 @@ def get_all_details(staging_store: StagingJobStore, all_tasks):
 
 
 if __name__ == "__main__":
-    configuration = configuration.get_configuration()
+    configuration = get_configuration()
 
-    with PostgresManager(configuration) as staging_store:
+    with PostgresManager(configuration) as raw_store:
         keywords = get_keywords([21, 25])
-        keywords = sort_keywords(keywords, staging_store)
+        keywords = sort_keywords(keywords, raw_store)
 
         extractors = [
-            SwissJobRoomExtractor(configuration=configuration),
             FranceTravailExtractor(configuration=configuration),
             USAJOBExtractor(configuration=configuration),
         ]
 
-        all_tasks = get_all_ids(configuration, keywords, extractors, staging_store)
+        all_tasks = get_all_ids(configuration, keywords, extractors, raw_store)
         all_tasks = group_tasks_by_source(all_tasks)
         all_tasks = distribute_tasks(all_tasks, configuration)
 
         print_log_ids_information(all_tasks)
 
-        get_all_details(staging_store, all_tasks)
+        get_all_details(raw_store, all_tasks)
 
     print("\nExtraction process finished.")
