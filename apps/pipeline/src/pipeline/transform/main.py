@@ -2,13 +2,13 @@ from typing import Protocol
 
 from rich import print
 
-from pipeline.configuration import configuration
-from pipeline.database.postgres_manager import PostgresManager
+from pipeline.config import get_configuration
+from pipeline.persistence import PostgresManager
+from pipeline.serving import QdrantManager
 from pipeline.transform.embedding_generator import EmbeddingGenerator
 from pipeline.transform.metadata_generator import MetadataGenerator
 from pipeline.transform.models import CleanJobOffer, EmbeddedJobOffer, JobOfferMetadata, RawJobOffer
 from pipeline.transform.preprocessors import preprocess_job_offer
-from pipeline.vector.qdrant_manager import QdrantManager
 
 
 class StagingJobStore(Protocol):
@@ -116,7 +116,7 @@ def run_transform_pipeline(
 
 
 if __name__ == "__main__":
-    config = configuration.get_configuration()
+    config = get_configuration()
 
     embedding_service = EmbeddingGenerator(
         base_url=config.ollama_base_url,
