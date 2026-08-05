@@ -16,17 +16,20 @@ from prefect.types.entrypoint import EntrypointType
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_WORK_POOL = "skillpolaris"
-DEFAULT_INGEST_CRON = "0 */6 * * *"
-DEFAULT_SYNC_KEYWORDS_CRON = "0 3 * * 0"
-
 
 def prefect_cmd(*args: str) -> list[str]:
     return [sys.executable, "-m", "prefect", *args]
 
 
+def require_env(name: str) -> str:
+    value = os.environ.get(name)
+    if value is None or value.strip() == "":
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
+
 def _api_url() -> str:
-    return os.environ.get("PREFECT_API_URL", "http://127.0.0.1:4200/api").rstrip("/")
+    return require_env("PREFECT_API_URL").rstrip("/")
 
 
 def wait_for_prefect_api(timeout_seconds: int = 180) -> None:
@@ -94,11 +97,9 @@ def register_deployments(
     ingest_cron: str | None = None,
     sync_keywords_cron: str | None = None,
 ) -> None:
-    pool = pool_name or os.environ.get("PREFECT_WORK_POOL", DEFAULT_WORK_POOL)
-    ingest_cron = ingest_cron or os.environ.get("INGEST_CRON", DEFAULT_INGEST_CRON)
-    sync_cron = sync_keywords_cron or os.environ.get(
-        "SYNC_KEYWORDS_CRON", DEFAULT_SYNC_KEYWORDS_CRON
-    )
+    pool = pool_name or require_env("PREFECT_WORK_POOL")
+    ingest_cron = ingest_cron or require_env("INGEST_CRON")
+    sync_cron = sync_keywords_cron or require_env("SYNC_KEYWORDS_CRON")
 
     wait_for_prefect_api()
     ensure_work_pool(pool)
