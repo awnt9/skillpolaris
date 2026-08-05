@@ -2,13 +2,8 @@
 # Requires the data plane network: start data compose first.
 #
 # Usage (when images exist):
-#   docker compose -f infra/docker-compose.data.yml --env-file .env up -d
-#   docker compose -f infra/docker-compose.app.yml --env-file .env --profile app up -d
-#
-# The app reads Qdrant (and later Postgres aggregates). It does not need Ollama
-# or Prefect. Inside this network:
-#   QDRANT_HOST=qdrant
-#   DB_HOST=db   # only if the API queries Postgres
+#   make compose ARGS="up -d"
+#   make compose-app ARGS="--profile app up -d"
 
 name: skillpolaris-app
 
@@ -18,22 +13,13 @@ networks:
     name: skillpolaris
 
 services:
-  # Future: HTTP API. Profile keeps the file valid before Dockerfiles exist.
   api:
     profiles: ["app"]
     build:
       context: ..
       dockerfile: apps/api/Dockerfile
-    environment:
-      DB_HOST: db
-      DB_PORT: "5432"
-      POSTGRES_USER: ${POSTGRES_USER:-}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
-      POSTGRES_DB: ${POSTGRES_DB:-}
-      QDRANT_HOST: qdrant
-      QDRANT_PORT: "6333"
-      QDRANT_COLLECTION_NAME: ${QDRANT_COLLECTION_NAME:-job_offers}
-      QDRANT_VECTOR_SIZE: ${QDRANT_VECTOR_SIZE:-768}
+    env_file:
+      - ../.env
     ports:
       - "8000:8000"
     networks:
@@ -45,8 +31,8 @@ services:
     build:
       context: ..
       dockerfile: apps/web/Dockerfile
-    environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    env_file:
+      - ../.env
     ports:
       - "3000:3000"
     networks:
