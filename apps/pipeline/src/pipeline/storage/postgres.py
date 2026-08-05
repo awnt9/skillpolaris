@@ -1,7 +1,11 @@
 import psycopg2
+from pipeline.schemas.jobs import (
+    CanonicalJobOffer,
+    PendingCanonicalJob,
+    PendingRawJob,
+    RawJobRecord,
+)
 from psycopg2.extras import Json, RealDictCursor
-
-from pipeline.domain.models import CanonicalJobOffer, RawJobRecord
 
 
 class PostgresManager:
@@ -138,15 +142,15 @@ class PostgresManager:
             if cursor:
                 cursor.close()
 
-    def get_pending_filter_jobs(self, limit: int | None = None):
+    def get_pending_filter_jobs(self, limit: int | None = None) -> list[PendingRawJob]:
         cursor = None
         try:
             cursor = self.connection.cursor(cursor_factory=RealDictCursor)
             query = """
                 SELECT
-                    id, source, job_id, extractor_kind, keyword,
+                    id, source, job_id, keyword,
                     title_raw, description_raw, url, company_raw,
-                    location_raw, posted_at_raw, raw_payload, filter_status
+                    location_raw, posted_at_raw
                 FROM raw_jobs
                 WHERE filter_status = 'pending'
                 ORDER BY extracted_at ASC, id ASC
@@ -157,9 +161,9 @@ class PostgresManager:
                 params = (limit,)
 
             cursor.execute(query, params)
-            results = cursor.fetchall()
+            rows = cursor.fetchall()
             self.connection.commit()
-            return results
+            return [PendingRawJob.model_validate(dict(row)) for row in rows]
 
         except psycopg2.Error as e:
             print(
@@ -181,9 +185,10 @@ class PostgresManager:
             query = """
                 INSERT INTO canonical_jobs (
                     raw_job_id, source, job_id, title, description,
-                    url, company, location, posted_at, keyword
+                    url, company, location, posted_at, keyword,
+                    transform_status
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending')
                 ON CONFLICT (source, job_id) DO NOTHING
             """
             cursor.execute(
@@ -246,48 +251,17 @@ class PostgresManager:
             if cursor:
                 cursor.close()
 
-    # --- Legacy staging_* API (transform still uses staging_jobs) ---
-
-    def count_jobs_by_keyword(self, keywords: list[str]) -> dict[str, int]:
-        return self.count_raw_jobs_by_keyword(keywords)
-
-    def save_to_staging(self, staged_job: RawJobRecord):
-        """Backward-compatible alias; prefer save_raw_job."""
-        self.save_raw_job(staged_job)
-
-    def get_from_staging(self):
+    def get_pending_canonical_jobs(
+        self, limit: int | None = None
+    ) -> list[PendingCanonicalJob]:
         cursor = None
         try:
             cursor = self.connection.cursor(cursor_factory=RealDictCursor)
             query = """
-                SELECT id, source, job_id, raw_content, keyword
-                FROM staging_jobs
-                WHERE status = 'pending'
-            """
-            cursor.execute(query)
-            results = cursor.fetchall()
-            self.connection.commit()
-            return results
-
-        except psycopg2.Error as e:
-            print(f" ERROR on PostgresManager. Cause: {e}")
-            if self.connection:
-                self.connection.rollback()
-            return []
-
-        finally:
-            if cursor:
-                cursor.close()
-
-    def get_pending_staging_jobs(self, limit: int | None = None):
-        cursor = None
-        try:
-            cursor = self.connection.cursor(cursor_factory=RealDictCursor)
-            query = """
-                SELECT id, source, job_id, raw_content, keyword
-                FROM staging_jobs
-                WHERE status = 'pending'
-                ORDER BY extracted_at ASC, id ASC
+                SELECT id, raw_job_id, source, job_id, title, description, keyword
+                FROM canonical_jobs
+                WHERE transform_status = 'pending'
+                ORDER BY created_at ASC, id ASC
             """
             params: tuple = ()
             if limit is not None:
@@ -295,13 +269,14 @@ class PostgresManager:
                 params = (limit,)
 
             cursor.execute(query, params)
-            results = cursor.fetchall()
+            rows = cursor.fetchall()
             self.connection.commit()
-            return results
+            return [PendingCanonicalJob.model_validate(dict(row)) for row in rows]
 
         except psycopg2.Error as e:
             print(
-                f" ERROR on PostgresManager: Could not get pending jobs. Cause: {e}"
+                f" ERROR on PostgresManager: Could not get pending canonical jobs. "
+                f"Cause: {e}"
             )
             if self.connection:
                 self.connection.rollback()
@@ -311,29 +286,29 @@ class PostgresManager:
             if cursor:
                 cursor.close()
 
-    def mark_as_processed(self, staging_id: int):
-        self._update_staging_status(staging_id=staging_id, status="processed")
+    def mark_canonical_processed(self, canonical_id: int) -> None:
+        self._update_canonical_transform_status(canonical_id, "processed")
 
-    def mark_as_failed(self, staging_id: int):
-        self._update_staging_status(staging_id=staging_id, status="failed")
+    def mark_canonical_failed(self, canonical_id: int) -> None:
+        self._update_canonical_transform_status(canonical_id, "failed")
 
-    def _update_staging_status(self, staging_id: int, status: str):
+    def _update_canonical_transform_status(self, canonical_id: int, status: str) -> None:
         cursor = None
         try:
             cursor = self.connection.cursor()
             query = """
-                UPDATE staging_jobs
-                SET status = %s,
-                    processed_at = CURRENT_TIMESTAMP
+                UPDATE canonical_jobs
+                SET transform_status = %s,
+                    transformed_at = CURRENT_TIMESTAMP
                 WHERE id = %s
             """
-            cursor.execute(query, (status, staging_id))
+            cursor.execute(query, (status, canonical_id))
             self.connection.commit()
 
         except psycopg2.Error as e:
             print(
-                f" ERROR on PostgresManager: Could not mark {staging_id} as "
-                f"{status}. Cause: {e}"
+                f" ERROR on PostgresManager: Could not mark canonical {canonical_id} "
+                f"as {status}. Cause: {e}"
             )
             if self.connection:
                 self.connection.rollback()

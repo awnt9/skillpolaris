@@ -1,12 +1,10 @@
 from typing import Any
 
 import requests
+from pipeline.schemas.extract_requests import FranceTravailRequestTemplate
+from pipeline.schemas.jobs import RawJobRecord
+from pipeline.tasks.sources.base import DetailExtractor, handle_api_errors
 from rich import print
-
-from pipeline.domain.models import RawJobRecord
-from pipeline.extract.base import DetailExtractor
-from pipeline.extract.errors import handle_api_errors
-from pipeline.extract.models import FranceTravailRequestTemplate
 
 
 class FranceTravailExtractor(DetailExtractor):

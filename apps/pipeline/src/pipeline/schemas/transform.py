@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import BaseModel, Field, Json
+from pydantic import BaseModel, Field
 
 
 class JobOfferMetadata(BaseModel):
@@ -30,23 +30,6 @@ class JobOfferMetadata(BaseModel):
     )
 
 
-class RawJobOffer(BaseModel):
-    id: int
-    source: str
-    job_id: str
-    raw_content: Json[dict[str, Any]]
-    keyword: str | None = None
-
-
-class CleanJobOffer(BaseModel):
-    id: int
-    source: str
-    job_id: str
-    title: str
-    description: str
-    keyword: str | None = None
-
-
 class EmbeddedJobOffer(BaseModel):
     id: int
     source: str
@@ -59,7 +42,7 @@ class EmbeddedJobOffer(BaseModel):
 
     def to_payload(self) -> dict[str, Any]:
         return {
-            "staging_id": self.id,
+            "canonical_id": self.id,
             "source": self.source,
             "job_id": self.job_id,
             "title": self.title,

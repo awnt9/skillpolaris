@@ -56,12 +56,14 @@ CREATE TABLE IF NOT EXISTS canonical_jobs (
     location TEXT,
     posted_at TEXT,
     keyword TEXT,
+    transform_status TEXT NOT NULL DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    transformed_at TIMESTAMP,
     UNIQUE (source, job_id)
 );
 """
 
-# Legacy table kept until transform migrates to canonical_jobs.
+# Legacy table kept for older datasets; new pipeline uses raw_jobs + canonical_jobs.
 STAGING_JOBS_DDL = """
 CREATE TABLE IF NOT EXISTS staging_jobs (
     id SERIAL PRIMARY KEY,
@@ -79,6 +81,10 @@ CREATE TABLE IF NOT EXISTS staging_jobs (
 
 def create_pipeline_tables():
     settings = DatabaseSettings()
+    migrations = [
+        "ALTER TABLE canonical_jobs ADD COLUMN IF NOT EXISTS transform_status TEXT NOT NULL DEFAULT 'pending'",
+        "ALTER TABLE canonical_jobs ADD COLUMN IF NOT EXISTS transformed_at TIMESTAMP",
+    ]
     with psycopg2.connect(
         host=settings.db_host,
         database=settings.postgres_db,
@@ -90,6 +96,8 @@ def create_pipeline_tables():
             cur.execute(RAW_JOBS_DDL)
             cur.execute(CANONICAL_JOBS_DDL)
             cur.execute(STAGING_JOBS_DDL)
+            for migration in migrations:
+                cur.execute(migration)
             connection.commit()
     print("Created/verified tables: raw_jobs, canonical_jobs, staging_jobs")
 

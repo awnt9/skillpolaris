@@ -46,30 +46,3 @@ class FranceTravailRequestTemplate(BaseModel):
     tempsPlein: Optional[bool] = None
     theme: Optional[str] = None
     typeContrat: Optional[str] = None
-
-
-class USAJOBSRequestTemplate(BaseModel):
-    Keyword: str
-    PositionTitle: Optional[str] = None
-    RemunerationMinimumAmount: Optional[int] = None
-    RemunerationMaximumAmount: Optional[int] = None
-    SalaryBucket: Optional[str] = None
-    PayGradeHigh: Optional[str] = None
-    PayGradeLow: Optional[str] = None
-    GradeBucket: Optional[str] = None
-    JobCategoryCode: Optional[str] = None
-    Organization: Optional[str] = None
-    LocationName: Optional[str] = None
-    Radius: Optional[int] = None
-    RemoteIndicator: Optional[bool] = None
-    PositionOfferingTypeCode: Optional[str] = None
-    PositionScheduleTypeCode: Optional[str] = None
-    TravelPercentage: Optional[int] = None
-    WhoMayApply: Optional[Literal["All", "Public", "Status"]] = "All"
-    HiringPath: Optional[str] = None
-    DatePosted: Optional[int] = Field(None, ge=0, le=60)
-    Page: Optional[int] = 1
-    ResultsPerPage: Optional[int] = Field(25, le=500)
-    SortField: Optional[str] = None
-    SortDirection: Optional[Literal["Asc", "Desc"]] = "Asc"
-    Fields: Optional[Literal["Min", "Full"]] = "Full"
