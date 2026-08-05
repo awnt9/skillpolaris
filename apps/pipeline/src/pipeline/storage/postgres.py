@@ -1,4 +1,5 @@
 import psycopg2
+from pipeline.schemas.extract import SearchKeyword, SearchKeywordUpsert
 from pipeline.schemas.jobs import (
     CanonicalJobOffer,
     PendingCanonicalJob,
@@ -134,6 +135,160 @@ class PostgresManager:
             print(
                 f" ERROR on PostgresManager: Could not save raw job on "
                 f"{raw_job.source}. Cause: {e}"
+            )
+            if self.connection:
+                self.connection.rollback()
+
+        finally:
+            if cursor:
+                cursor.close()
+
+    def upsert_search_keywords(self, keywords: list[SearchKeywordUpsert]) -> int:
+        if not keywords:
+            return 0
+
+        cursor = None
+        inserted = 0
+        try:
+            cursor = self.connection.cursor()
+            query = """
+                INSERT INTO search_keywords (
+                    keyword, dimension, source_scope, priority, origin, active
+                )
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (keyword, dimension, source_scope) DO UPDATE
+                SET priority = EXCLUDED.priority,
+                    origin = EXCLUDED.origin,
+                    active = EXCLUDED.active
+            """
+            for item in keywords:
+                cursor.execute(
+                    query,
+                    (
+                        item.keyword,
+                        item.dimension,
+                        item.source_scope or "",
+                        item.priority,
+                        item.origin,
+                        item.active,
+                    ),
+                )
+                inserted += cursor.rowcount
+            self.connection.commit()
+            return inserted
+
+        except psycopg2.Error as e:
+            print(f" ERROR on PostgresManager: Could not upsert keywords. Cause: {e}")
+            if self.connection:
+                self.connection.rollback()
+            return 0
+
+        finally:
+            if cursor:
+                cursor.close()
+
+    def refresh_keyword_raw_jobs_counts(self) -> None:
+        cursor = None
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute(
+                """
+                UPDATE search_keywords sk
+                SET raw_jobs_count = COALESCE(counts.cnt, 0)
+                FROM (
+                    SELECT keyword, COUNT(*) AS cnt
+                    FROM raw_jobs
+                    WHERE keyword IS NOT NULL
+                    GROUP BY keyword
+                ) counts
+                WHERE sk.keyword = counts.keyword
+                """
+            )
+            self.connection.commit()
+
+        except psycopg2.Error as e:
+            print(
+                f" ERROR on PostgresManager: Could not refresh keyword counts. "
+                f"Cause: {e}"
+            )
+            if self.connection:
+                self.connection.rollback()
+
+        finally:
+            if cursor:
+                cursor.close()
+
+    def get_keywords_for_extract(
+        self,
+        *,
+        source_name: str,
+        limit: int,
+        cooldown_hours: int = 0,
+    ) -> list[SearchKeyword]:
+        cursor = None
+        try:
+            cursor = self.connection.cursor(cursor_factory=RealDictCursor)
+            cooldown_clause = ""
+            params: list = [source_name]
+            if cooldown_hours > 0:
+                cooldown_clause = """
+                  AND (
+                      last_searched_at IS NULL
+                      OR last_searched_at < CURRENT_TIMESTAMP - (%s * INTERVAL '1 hour')
+                  )
+                """
+                params.append(cooldown_hours)
+            params.append(limit)
+            cursor.execute(
+                f"""
+                SELECT
+                    id, keyword, dimension, source_scope, priority, origin,
+                    active, last_searched_at, raw_jobs_count
+                FROM search_keywords
+                WHERE active = TRUE
+                  AND (source_scope IS NULL OR source_scope = '' OR source_scope = %s)
+                {cooldown_clause}
+                ORDER BY priority DESC, raw_jobs_count ASC,
+                         last_searched_at ASC NULLS FIRST, id ASC
+                LIMIT %s
+                """,
+                tuple(params),
+            )
+            rows = cursor.fetchall()
+            self.connection.commit()
+            return [SearchKeyword.model_validate(dict(row)) for row in rows]
+
+        except psycopg2.Error as e:
+            print(
+                f" ERROR on PostgresManager: Could not get keywords for extract. "
+                f"Cause: {e}"
+            )
+            if self.connection:
+                self.connection.rollback()
+            return []
+
+        finally:
+            if cursor:
+                cursor.close()
+
+    def mark_keyword_searched(self, keyword_id: int) -> None:
+        cursor = None
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute(
+                """
+                UPDATE search_keywords
+                SET last_searched_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                """,
+                (keyword_id,),
+            )
+            self.connection.commit()
+
+        except psycopg2.Error as e:
+            print(
+                f" ERROR on PostgresManager: Could not mark keyword searched. "
+                f"Cause: {e}"
             )
             if self.connection:
                 self.connection.rollback()

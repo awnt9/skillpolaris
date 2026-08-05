@@ -63,6 +63,28 @@ CREATE TABLE IF NOT EXISTS canonical_jobs (
 );
 """
 
+SEARCH_KEYWORDS_DDL = """
+CREATE TABLE IF NOT EXISTS search_keywords (
+    id SERIAL PRIMARY KEY,
+    keyword TEXT NOT NULL,
+    dimension TEXT NOT NULL DEFAULT 'role',
+    source_scope TEXT NOT NULL DEFAULT '',
+    priority INT NOT NULL DEFAULT 0,
+    origin TEXT NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    last_searched_at TIMESTAMP,
+    raw_jobs_count INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (keyword, dimension, source_scope)
+);
+"""
+
+SEARCH_KEYWORDS_INDEX_DDL = """
+CREATE INDEX IF NOT EXISTS idx_search_keywords_active
+    ON search_keywords (active, priority DESC, raw_jobs_count ASC, last_searched_at ASC NULLS FIRST)
+    WHERE active = TRUE
+"""
+
 # Legacy table kept for older datasets; new pipeline uses raw_jobs + canonical_jobs.
 STAGING_JOBS_DDL = """
 CREATE TABLE IF NOT EXISTS staging_jobs (
@@ -95,11 +117,16 @@ def create_pipeline_tables():
         with connection.cursor() as cur:
             cur.execute(RAW_JOBS_DDL)
             cur.execute(CANONICAL_JOBS_DDL)
+            cur.execute(SEARCH_KEYWORDS_DDL)
+            cur.execute(SEARCH_KEYWORDS_INDEX_DDL)
             cur.execute(STAGING_JOBS_DDL)
             for migration in migrations:
                 cur.execute(migration)
             connection.commit()
-    print("Created/verified tables: raw_jobs, canonical_jobs, staging_jobs")
+    print(
+        "Created/verified tables: raw_jobs, canonical_jobs, "
+        "search_keywords, staging_jobs"
+    )
 
 
 if __name__ == "__main__":
