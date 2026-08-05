@@ -16,6 +16,11 @@ class Settings(BaseSettings):
 
     max_total_details: int = Field(alias="MAX_TOTAL_DETAILS")
     max_depth: int = Field(alias="MAX_DEPTH")
+    extract_keyword_limit: int = Field(default=50, alias="EXTRACT_KEYWORD_LIMIT")
+    extract_keyword_cooldown_hours: int = Field(
+        default=24,
+        alias="EXTRACT_KEYWORD_COOLDOWN_HOURS",
+    )
 
     transform_batch_size: int = Field(default=25, alias="TRANSFORM_BATCH_SIZE")
     filter_batch_size: int = Field(default=50, alias="FILTER_BATCH_SIZE")

@@ -2,22 +2,23 @@
 
 from __future__ import annotations
 
-from pipeline.tasks.extract import extract_task
-from pipeline.tasks.filter import filter_task
-from pipeline.tasks.transform import transform_task
+from pipeline.tasks.extract.task import extract_task
 from prefect import flow, get_run_logger
 
 
 @flow(name="ingest-jobs", log_prints=True)
-def ingest_flow(esco_groups: list[int] | None = None) -> dict[str, dict[str, int]]:
+def ingest_flow() -> dict[str, dict[str, int]]:
     """
     Run the full pipeline with a durable checkpoint after each stage.
 
+    Reads search_keywords from Postgres, then:
     raw_jobs → canonical_jobs → Qdrant
+
+    Keyword catalog sync is a separate flow: pipeline.flows.sync_keywords
     """
     logger = get_run_logger()
 
-    extract_result = extract_task(esco_groups=esco_groups)
+    extract_result = extract_task()
     # filter_result = filter_task()
     # transform_result = transform_task()
 
