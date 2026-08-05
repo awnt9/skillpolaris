@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "SkillPolaris ETL pipeline (extract, transform, embed, load)"
 requires-python = ">=3.14"
 dependencies = [
+    "alembic>=1.18.5",
     "dotenv>=0.9.9",
     "instructor>=1.15.1",
     "openai>=2.31.0",

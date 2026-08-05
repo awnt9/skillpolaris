@@ -1146,6 +1146,7 @@ name = "pipeline"
 version = "0.1.0"
 source = { editable = "apps/pipeline" }
 dependencies = [
+    { name = "alembic" },
     { name = "dotenv" },
     { name = "instructor" },
     { name = "openai" },
@@ -1161,6 +1162,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "alembic", specifier = ">=1.18.5" },
     { name = "dotenv", specifier = ">=0.9.9" },
     { name = "instructor", specifier = ">=1.15.1" },
     { name = "openai", specifier = ">=2.31.0" },

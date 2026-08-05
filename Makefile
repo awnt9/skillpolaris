@@ -2,7 +2,7 @@ FILE ?= .
 ARGS ?=
 
 .PHONY: lint fix format compose compose-pipeline compose-app \
-	pipeline-shell pipeline sync-keywords prefect-deploy
+	pipeline-shell pipeline sync-keywords prefect-deploy migrate migrate-docker
 
 lint:
 	uv run ruff check $(FILE)
@@ -37,3 +37,11 @@ sync-keywords:
 prefect-deploy:
 	docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \
 		uv run --package pipeline python -m pipeline.deployments
+
+# Schema migrations (Alembic)
+migrate:
+	uv run --package pipeline alembic -c apps/pipeline/alembic.ini upgrade head
+
+migrate-docker:
+	docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \
+		uv run --package pipeline alembic -c apps/pipeline/alembic.ini upgrade head

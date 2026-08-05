@@ -17,6 +17,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --package pipeline
 
 COPY apps/pipeline/src ./apps/pipeline/src
+COPY apps/pipeline/alembic.ini apps/pipeline/alembic.ini
+COPY apps/pipeline/alembic ./apps/pipeline/alembic
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --package pipeline
