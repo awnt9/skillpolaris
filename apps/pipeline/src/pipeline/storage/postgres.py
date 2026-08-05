@@ -1,4 +1,9 @@
-import psycopg2
+"""Postgres access via SQLModel sessions."""
+
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+
 from pipeline.schemas.extract import SearchKeyword, SearchKeywordUpsert
 from pipeline.schemas.jobs import (
     CanonicalJobOffer,
@@ -6,217 +11,163 @@ from pipeline.schemas.jobs import (
     PendingRawJob,
     RawJobRecord,
 )
-from psycopg2.extras import Json, RealDictCursor
+from pipeline.storage.models import CanonicalJob, RawJob, SearchKeywordRow
+from sqlalchemy import func, or_, text
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import SQLAlchemyError
+from sqlmodel import Session, col, create_engine, select
+
+
+def build_database_url(configuration) -> str:
+    return (
+        f"postgresql+psycopg2://{configuration.postgres_user}:"
+        f"{configuration.postgres_password}@{configuration.db_host}:"
+        f"{configuration.db_port}/{configuration.postgres_db}"
+    )
 
 
 class PostgresManager:
     def __init__(self, configuration):
         self.configuration = configuration
-        self.connection = psycopg2.connect(
-            host=configuration.db_host,
-            database=configuration.postgres_db,
-            user=configuration.postgres_user,
-            password=configuration.postgres_password,
-            port=configuration.db_port,
-        )
+        self.engine = create_engine(build_database_url(configuration), pool_pre_ping=True)
+        self.session = Session(self.engine)
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        if exc_type and self.connection:
-            self.connection.rollback()
+        if exc_type:
+            self.session.rollback()
         self.close()
         return False
 
     def close(self):
-        if self.connection and not self.connection.closed:
-            self.connection.close()
+        self.session.close()
+        self.engine.dispose()
 
     def count_raw_jobs_by_keyword(self, keywords: list[str]) -> dict[str, int]:
         if not keywords:
             return {}
 
-        cursor = None
         try:
-            cursor = self.connection.cursor()
-            query = """
-                SELECT keyword, COUNT(*)
-                FROM raw_jobs
-                WHERE keyword = ANY(%s)
-                GROUP BY keyword
-            """
-            cursor.execute(query, (keywords,))
-            results = dict(cursor.fetchall())
-            self.connection.commit()
-            return results
-
-        except psycopg2.Error as e:
+            statement = (
+                select(RawJob.keyword, func.count())
+                .where(col(RawJob.keyword).in_(keywords))
+                .group_by(RawJob.keyword)
+            )
+            rows = self.session.exec(statement).all()
+            self.session.commit()
+            return {keyword: count for keyword, count in rows if keyword is not None}
+        except SQLAlchemyError as e:
             print(f" ERROR on PostgresManager: Could not count keywords. Cause: {e}")
-            if self.connection:
-                self.connection.rollback()
+            self.session.rollback()
             return {}
-
-        finally:
-            if cursor:
-                cursor.close()
 
     def filter_new_job_ids(self, source_name: str, raw_ids: list[str]) -> list[str]:
         if not raw_ids:
             return []
 
-        cursor = None
         try:
-            cursor = self.connection.cursor()
-            query = """
-                SELECT job_id
-                FROM raw_jobs
-                WHERE source = %s AND job_id = ANY(%s)
-            """
-            cursor.execute(query, (source_name, raw_ids))
-            existing_ids = {row[0] for row in cursor.fetchall()}
-            self.connection.commit()
+            statement = select(RawJob.job_id).where(
+                RawJob.source == source_name,
+                col(RawJob.job_id).in_(raw_ids),
+            )
+            existing_ids = set(self.session.exec(statement).all())
+            self.session.commit()
             return [job_id for job_id in raw_ids if job_id not in existing_ids]
-
-        except psycopg2.Error as e:
+        except SQLAlchemyError as e:
             print(
                 f" ERROR on PostgresManager: Could not filter IDs for {source_name}. "
                 f"Cause: {e}"
             )
-            if self.connection:
-                self.connection.rollback()
+            self.session.rollback()
             return []
 
-        finally:
-            if cursor:
-                cursor.close()
-
     def save_raw_job(self, raw_job: RawJobRecord) -> None:
-        cursor = None
         try:
-            cursor = self.connection.cursor()
-            query = """
-                INSERT INTO raw_jobs (
-                    source,
-                    job_id,
-                    extractor_kind,
-                    keyword,
-                    title_raw,
-                    description_raw,
-                    url,
-                    company_raw,
-                    location_raw,
-                    posted_at_raw,
-                    raw_payload,
-                    filter_status
+            statement = (
+                insert(RawJob)
+                .values(
+                    source=raw_job.source,
+                    job_id=raw_job.external_id,
+                    extractor_kind=raw_job.extractor_kind,
+                    keyword=raw_job.keyword,
+                    title_raw=raw_job.title_raw,
+                    description_raw=raw_job.description_raw,
+                    url=raw_job.url,
+                    company_raw=raw_job.company_raw,
+                    location_raw=raw_job.location_raw,
+                    posted_at_raw=raw_job.posted_at_raw,
+                    raw_payload=raw_job.raw_payload,
+                    filter_status="pending",
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending')
-                ON CONFLICT (source, job_id) DO NOTHING
-            """
-            cursor.execute(
-                query,
-                (
-                    raw_job.source,
-                    raw_job.external_id,
-                    raw_job.extractor_kind,
-                    raw_job.keyword,
-                    raw_job.title_raw,
-                    raw_job.description_raw,
-                    raw_job.url,
-                    raw_job.company_raw,
-                    raw_job.location_raw,
-                    raw_job.posted_at_raw,
-                    Json(raw_job.raw_payload),
-                ),
+                .on_conflict_do_nothing(index_elements=["source", "job_id"])
             )
-            self.connection.commit()
-
-        except psycopg2.Error as e:
+            self.session.execute(statement)
+            self.session.commit()
+        except SQLAlchemyError as e:
             print(
                 f" ERROR on PostgresManager: Could not save raw job on "
                 f"{raw_job.source}. Cause: {e}"
             )
-            if self.connection:
-                self.connection.rollback()
-
-        finally:
-            if cursor:
-                cursor.close()
+            self.session.rollback()
 
     def upsert_search_keywords(self, keywords: list[SearchKeywordUpsert]) -> int:
         if not keywords:
             return 0
 
-        cursor = None
-        inserted = 0
         try:
-            cursor = self.connection.cursor()
-            query = """
-                INSERT INTO search_keywords (
-                    keyword, dimension, source_scope, priority, origin, active
-                )
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (keyword, dimension, source_scope) DO UPDATE
-                SET priority = EXCLUDED.priority,
-                    origin = EXCLUDED.origin,
-                    active = EXCLUDED.active
-            """
+            affected = 0
             for item in keywords:
-                cursor.execute(
-                    query,
-                    (
-                        item.keyword,
-                        item.dimension,
-                        item.source_scope or "",
-                        item.priority,
-                        item.origin,
-                        item.active,
-                    ),
+                statement = insert(SearchKeywordRow).values(
+                    keyword=item.keyword,
+                    dimension=item.dimension,
+                    source_scope=item.source_scope or "",
+                    priority=item.priority,
+                    origin=item.origin,
+                    active=item.active,
                 )
-                inserted += cursor.rowcount
-            self.connection.commit()
-            return inserted
-
-        except psycopg2.Error as e:
+                statement = statement.on_conflict_do_update(
+                    index_elements=["keyword", "dimension", "source_scope"],
+                    set_={
+                        "priority": statement.excluded.priority,
+                        "origin": statement.excluded.origin,
+                        "active": statement.excluded.active,
+                    },
+                )
+                result = self.session.execute(statement)
+                affected += result.rowcount or 0
+            self.session.commit()
+            return affected
+        except SQLAlchemyError as e:
             print(f" ERROR on PostgresManager: Could not upsert keywords. Cause: {e}")
-            if self.connection:
-                self.connection.rollback()
+            self.session.rollback()
             return 0
 
-        finally:
-            if cursor:
-                cursor.close()
-
     def refresh_keyword_raw_jobs_counts(self) -> None:
-        cursor = None
         try:
-            cursor = self.connection.cursor()
-            cursor.execute(
-                """
-                UPDATE search_keywords sk
-                SET raw_jobs_count = COALESCE(counts.cnt, 0)
-                FROM (
-                    SELECT keyword, COUNT(*) AS cnt
-                    FROM raw_jobs
-                    WHERE keyword IS NOT NULL
-                    GROUP BY keyword
-                ) counts
-                WHERE sk.keyword = counts.keyword
-                """
+            self.session.execute(
+                text(
+                    """
+                    UPDATE search_keywords sk
+                    SET raw_jobs_count = COALESCE(counts.cnt, 0)
+                    FROM (
+                        SELECT keyword, COUNT(*) AS cnt
+                        FROM raw_jobs
+                        WHERE keyword IS NOT NULL
+                        GROUP BY keyword
+                    ) counts
+                    WHERE sk.keyword = counts.keyword
+                    """
+                )
             )
-            self.connection.commit()
-
-        except psycopg2.Error as e:
+            self.session.commit()
+        except SQLAlchemyError as e:
             print(
                 f" ERROR on PostgresManager: Could not refresh keyword counts. "
                 f"Cause: {e}"
             )
-            if self.connection:
-                self.connection.rollback()
-
-        finally:
-            if cursor:
-                cursor.close()
+            self.session.rollback()
 
     def get_keywords_for_extract(
         self,
@@ -225,155 +176,136 @@ class PostgresManager:
         limit: int,
         cooldown_hours: int = 0,
     ) -> list[SearchKeyword]:
-        cursor = None
         try:
-            cursor = self.connection.cursor(cursor_factory=RealDictCursor)
-            cooldown_clause = ""
-            params: list = [source_name]
-            if cooldown_hours > 0:
-                cooldown_clause = """
-                  AND (
-                      last_searched_at IS NULL
-                      OR last_searched_at < CURRENT_TIMESTAMP - (%s * INTERVAL '1 hour')
-                  )
-                """
-                params.append(cooldown_hours)
-            params.append(limit)
-            cursor.execute(
-                f"""
-                SELECT
-                    id, keyword, dimension, source_scope, priority, origin,
-                    active, last_searched_at, raw_jobs_count
-                FROM search_keywords
-                WHERE active = TRUE
-                  AND (source_scope IS NULL OR source_scope = '' OR source_scope = %s)
-                {cooldown_clause}
-                ORDER BY priority DESC, raw_jobs_count ASC,
-                         last_searched_at ASC NULLS FIRST, id ASC
-                LIMIT %s
-                """,
-                tuple(params),
+            statement = select(SearchKeywordRow).where(
+                SearchKeywordRow.active.is_(True),
+                or_(
+                    SearchKeywordRow.source_scope.is_(None),
+                    SearchKeywordRow.source_scope == "",
+                    SearchKeywordRow.source_scope == source_name,
+                ),
             )
-            rows = cursor.fetchall()
-            self.connection.commit()
-            return [SearchKeyword.model_validate(dict(row)) for row in rows]
-
-        except psycopg2.Error as e:
+            if cooldown_hours > 0:
+                cutoff = datetime.now(timezone.utc) - timedelta(hours=cooldown_hours)
+                statement = statement.where(
+                    or_(
+                        SearchKeywordRow.last_searched_at.is_(None),
+                        SearchKeywordRow.last_searched_at < cutoff,
+                    )
+                )
+            statement = (
+                statement.order_by(
+                    col(SearchKeywordRow.priority).desc(),
+                    col(SearchKeywordRow.raw_jobs_count).asc(),
+                    col(SearchKeywordRow.last_searched_at).asc().nulls_first(),
+                    col(SearchKeywordRow.id).asc(),
+                ).limit(limit)
+            )
+            rows = self.session.exec(statement).all()
+            self.session.commit()
+            return [
+                SearchKeyword(
+                    id=row.id,
+                    keyword=row.keyword,
+                    dimension=row.dimension,  # type: ignore[arg-type]
+                    source_scope=row.source_scope or None,
+                    priority=row.priority,
+                    origin=row.origin,  # type: ignore[arg-type]
+                    active=row.active,
+                    last_searched_at=(
+                        row.last_searched_at.isoformat() if row.last_searched_at else None
+                    ),
+                    raw_jobs_count=row.raw_jobs_count,
+                )
+                for row in rows
+                if row.id is not None
+            ]
+        except SQLAlchemyError as e:
             print(
                 f" ERROR on PostgresManager: Could not get keywords for extract. "
                 f"Cause: {e}"
             )
-            if self.connection:
-                self.connection.rollback()
+            self.session.rollback()
             return []
 
-        finally:
-            if cursor:
-                cursor.close()
-
     def mark_keyword_searched(self, keyword_id: int) -> None:
-        cursor = None
         try:
-            cursor = self.connection.cursor()
-            cursor.execute(
-                """
-                UPDATE search_keywords
-                SET last_searched_at = CURRENT_TIMESTAMP
-                WHERE id = %s
-                """,
-                (keyword_id,),
-            )
-            self.connection.commit()
-
-        except psycopg2.Error as e:
+            row = self.session.get(SearchKeywordRow, keyword_id)
+            if row is None:
+                return
+            row.last_searched_at = datetime.now(timezone.utc)
+            self.session.add(row)
+            self.session.commit()
+        except SQLAlchemyError as e:
             print(
                 f" ERROR on PostgresManager: Could not mark keyword searched. "
                 f"Cause: {e}"
             )
-            if self.connection:
-                self.connection.rollback()
-
-        finally:
-            if cursor:
-                cursor.close()
+            self.session.rollback()
 
     def get_pending_filter_jobs(self, limit: int | None = None) -> list[PendingRawJob]:
-        cursor = None
         try:
-            cursor = self.connection.cursor(cursor_factory=RealDictCursor)
-            query = """
-                SELECT
-                    id, source, job_id, keyword,
-                    title_raw, description_raw, url, company_raw,
-                    location_raw, posted_at_raw
-                FROM raw_jobs
-                WHERE filter_status = 'pending'
-                ORDER BY extracted_at ASC, id ASC
-            """
-            params: tuple = ()
+            statement = (
+                select(RawJob)
+                .where(RawJob.filter_status == "pending")
+                .order_by(col(RawJob.extracted_at).asc(), col(RawJob.id).asc())
+            )
             if limit is not None:
-                query += " LIMIT %s"
-                params = (limit,)
+                statement = statement.limit(limit)
 
-            cursor.execute(query, params)
-            rows = cursor.fetchall()
-            self.connection.commit()
-            return [PendingRawJob.model_validate(dict(row)) for row in rows]
-
-        except psycopg2.Error as e:
+            rows = self.session.exec(statement).all()
+            self.session.commit()
+            return [
+                PendingRawJob(
+                    id=row.id,
+                    source=row.source,
+                    job_id=row.job_id,
+                    keyword=row.keyword,
+                    title_raw=row.title_raw or "",
+                    description_raw=row.description_raw or "",
+                    url=row.url,
+                    company_raw=row.company_raw,
+                    location_raw=row.location_raw,
+                    posted_at_raw=row.posted_at_raw,
+                )
+                for row in rows
+                if row.id is not None
+            ]
+        except SQLAlchemyError as e:
             print(
                 f" ERROR on PostgresManager: Could not get pending filter jobs. "
                 f"Cause: {e}"
             )
-            if self.connection:
-                self.connection.rollback()
+            self.session.rollback()
             return []
 
-        finally:
-            if cursor:
-                cursor.close()
-
     def save_canonical_job(self, job: CanonicalJobOffer) -> None:
-        cursor = None
         try:
-            cursor = self.connection.cursor()
-            query = """
-                INSERT INTO canonical_jobs (
-                    raw_job_id, source, job_id, title, description,
-                    url, company, location, posted_at, keyword,
-                    transform_status
+            statement = (
+                insert(CanonicalJob)
+                .values(
+                    raw_job_id=job.raw_job_id,
+                    source=job.source,
+                    job_id=job.job_id,
+                    title=job.title,
+                    description=job.description,
+                    url=job.url,
+                    company=job.company,
+                    location=job.location,
+                    posted_at=job.posted_at,
+                    keyword=job.keyword,
+                    transform_status="pending",
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'pending')
-                ON CONFLICT (source, job_id) DO NOTHING
-            """
-            cursor.execute(
-                query,
-                (
-                    job.raw_job_id,
-                    job.source,
-                    job.job_id,
-                    job.title,
-                    job.description,
-                    job.url,
-                    job.company,
-                    job.location,
-                    job.posted_at,
-                    job.keyword,
-                ),
+                .on_conflict_do_nothing(index_elements=["source", "job_id"])
             )
-            self.connection.commit()
-
-        except psycopg2.Error as e:
+            self.session.execute(statement)
+            self.session.commit()
+        except SQLAlchemyError as e:
             print(
                 f" ERROR on PostgresManager: Could not save canonical job "
                 f"{job.source}/{job.job_id}. Cause: {e}"
             )
-            if self.connection:
-                self.connection.rollback()
-
-        finally:
-            if cursor:
-                cursor.close()
+            self.session.rollback()
 
     def update_raw_filter_status(
         self,
@@ -381,65 +313,56 @@ class PostgresManager:
         status: str,
         method: str | None = None,
     ) -> None:
-        cursor = None
         try:
-            cursor = self.connection.cursor()
-            query = """
-                UPDATE raw_jobs
-                SET filter_status = %s,
-                    filter_method = %s,
-                    filtered_at = CURRENT_TIMESTAMP
-                WHERE id = %s
-            """
-            cursor.execute(query, (status, method, raw_job_id))
-            self.connection.commit()
-
-        except psycopg2.Error as e:
+            row = self.session.get(RawJob, raw_job_id)
+            if row is None:
+                return
+            row.filter_status = status
+            row.filter_method = method
+            row.filtered_at = datetime.now(timezone.utc)
+            self.session.add(row)
+            self.session.commit()
+        except SQLAlchemyError as e:
             print(
                 f" ERROR on PostgresManager: Could not update filter status for "
                 f"{raw_job_id}. Cause: {e}"
             )
-            if self.connection:
-                self.connection.rollback()
-
-        finally:
-            if cursor:
-                cursor.close()
+            self.session.rollback()
 
     def get_pending_canonical_jobs(
         self, limit: int | None = None
     ) -> list[PendingCanonicalJob]:
-        cursor = None
         try:
-            cursor = self.connection.cursor(cursor_factory=RealDictCursor)
-            query = """
-                SELECT id, raw_job_id, source, job_id, title, description, keyword
-                FROM canonical_jobs
-                WHERE transform_status = 'pending'
-                ORDER BY created_at ASC, id ASC
-            """
-            params: tuple = ()
+            statement = (
+                select(CanonicalJob)
+                .where(CanonicalJob.transform_status == "pending")
+                .order_by(col(CanonicalJob.created_at).asc(), col(CanonicalJob.id).asc())
+            )
             if limit is not None:
-                query += " LIMIT %s"
-                params = (limit,)
+                statement = statement.limit(limit)
 
-            cursor.execute(query, params)
-            rows = cursor.fetchall()
-            self.connection.commit()
-            return [PendingCanonicalJob.model_validate(dict(row)) for row in rows]
-
-        except psycopg2.Error as e:
+            rows = self.session.exec(statement).all()
+            self.session.commit()
+            return [
+                PendingCanonicalJob(
+                    id=row.id,
+                    raw_job_id=row.raw_job_id or 0,
+                    source=row.source,
+                    job_id=row.job_id,
+                    title=row.title,
+                    description=row.description,
+                    keyword=row.keyword,
+                )
+                for row in rows
+                if row.id is not None
+            ]
+        except SQLAlchemyError as e:
             print(
                 f" ERROR on PostgresManager: Could not get pending canonical jobs. "
                 f"Cause: {e}"
             )
-            if self.connection:
-                self.connection.rollback()
+            self.session.rollback()
             return []
-
-        finally:
-            if cursor:
-                cursor.close()
 
     def mark_canonical_processed(self, canonical_id: int) -> None:
         self._update_canonical_transform_status(canonical_id, "processed")
@@ -448,26 +371,17 @@ class PostgresManager:
         self._update_canonical_transform_status(canonical_id, "failed")
 
     def _update_canonical_transform_status(self, canonical_id: int, status: str) -> None:
-        cursor = None
         try:
-            cursor = self.connection.cursor()
-            query = """
-                UPDATE canonical_jobs
-                SET transform_status = %s,
-                    transformed_at = CURRENT_TIMESTAMP
-                WHERE id = %s
-            """
-            cursor.execute(query, (status, canonical_id))
-            self.connection.commit()
-
-        except psycopg2.Error as e:
+            row = self.session.get(CanonicalJob, canonical_id)
+            if row is None:
+                return
+            row.transform_status = status
+            row.transformed_at = datetime.now(timezone.utc)
+            self.session.add(row)
+            self.session.commit()
+        except SQLAlchemyError as e:
             print(
                 f" ERROR on PostgresManager: Could not mark canonical {canonical_id} "
                 f"as {status}. Cause: {e}"
             )
-            if self.connection:
-                self.connection.rollback()
-
-        finally:
-            if cursor:
-                cursor.close()
+            self.session.rollback()
