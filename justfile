@@ -7,25 +7,14 @@ fix file=".":
 format file=".":
     @uv run ruff format {{file}}
 
-delete_cache:
-    powershell.exe -Command "Get-ChildItem -Path . -Filter '__pycache__' -Recurse | Remove-Item -Force -Recurse"
-
-extract:
-    uv run --package pipeline python -m pipeline.extract.main
-
-transform:
-    uv run --package pipeline python -m pipeline.transform.main
+pipeline:
+    uv run --package pipeline python -m pipeline.flows.ingest
 
 compose *args:
-    docker compose -f infra/docker-compose.yml --env-file .env {{args}}
+    docker compose -f infra/docker-compose.data.yml --env-file .env {{args}}
 
-update_image image:
-    @echo "Iniciando proceso para {{image}}..."
+compose-pipeline *args:
+    docker compose -f infra/docker-compose.pipeline.yml --env-file .env {{args}}
 
-    docker build -t antoniobrrg/{{image}}:latest -f apps/pipeline/Dockerfile.{{image}} .
-
-    docker login
-
-    docker push antoniobrrg/{{image}}:latest
-
-    @echo "¡Imagen actualizada y subida con éxito!"
+compose-app *args:
+    docker compose -f infra/docker-compose.app.yml --env-file .env {{args}}
