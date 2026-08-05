@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
@@ -21,4 +21,5 @@ COPY apps/pipeline/src ./apps/pipeline/src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --package pipeline
 
-CMD ["uv", "run", "--package", "pipeline", "python", "-m", "pipeline.flows.ingest"]
+# Always-on worker: register deployments, then poll the work pool.
+CMD ["uv", "run", "--package", "pipeline", "python", "-m", "pipeline.worker"]

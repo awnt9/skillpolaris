@@ -1,18 +1,14 @@
-# Pipeline compute — separate from the app.
+# Prefect server + pipeline worker (full Docker / prod-like).
 # Requires the data plane network: start data compose first.
 #
-# Today extract runs on the host:
-#   uv run --package pipeline python -m pipeline.flows.ingest
-# with DB/Qdrant/Ollama on localhost (ports published by data compose).
+# Usage:
+#   make compose ARGS="up -d"
+#   make compose-pipeline ARGS="up -d --build"
 #
-# Usage (when worker image exists):
-#   docker compose -f infra/docker-compose.data.yml --env-file .env up -d
-#   docker compose -f infra/docker-compose.pipeline.yml --env-file .env --profile worker up -d
-#
-# Inside this network use hostnames: db, qdrant, ollama
-#   DB_HOST=db
-#   QDRANT_HOST=qdrant
-#   OLLAMA_BASE_URL=http://ollama:11434/v1
+# UI: PREFECT_UI_API_URL in .env (browser URL)
+# Debug:
+#   docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker bash
+#   make pipeline-shell
 
 name: skillpolaris-pipeline
 
@@ -21,32 +17,49 @@ networks:
     external: true
     name: skillpolaris
 
+volumes:
+  prefect_data:
+
 services:
-  # Future: containerized Prefect / pipeline worker.
-  # Kept behind profile so this file is valid without building yet.
+  prefect-server:
+    image: prefecthq/prefect:3-latest
+    container_name: skillpolaris_prefect
+    command: ["prefect", "server", "start", "--host", "0.0.0.0"]
+    env_file:
+      - ../.env
+    environment:
+      # Listen on all interfaces inside the container (not a user secret).
+      PREFECT_SERVER_API_HOST: 0.0.0.0
+    ports:
+      - "${PREFECT_PORT}:4200"
+    volumes:
+      - prefect_data:/root/.prefect
+    networks:
+      - skillpolaris
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4200/api/health')",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
   pipeline-worker:
-    profiles: ["worker"]
     build:
       context: ..
       dockerfile: apps/pipeline/Dockerfile
-    environment:
-      DB_HOST: db
-      DB_PORT: "5432"
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      QDRANT_HOST: qdrant
-      QDRANT_PORT: "6333"
-      OLLAMA_BASE_URL: http://ollama:11434/v1
-      FRANCE_TRAVAIL_CLIENT_ID: ${FRANCE_TRAVAIL_CLIENT_ID:-}
-      FRANCE_TRAVAIL_CLIENT_SECRET: ${FRANCE_TRAVAIL_CLIENT_SECRET:-}
-      MAX_TOTAL_DETAILS: ${MAX_TOTAL_DETAILS:-50}
-      MAX_DEPTH: ${MAX_DEPTH:-3}
-      LLM_MODEL: ${LLM_MODEL:-}
-      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-ollama}
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-nomic-embed-text}
-      QDRANT_COLLECTION_NAME: ${QDRANT_COLLECTION_NAME:-job_offers}
-      QDRANT_VECTOR_SIZE: ${QDRANT_VECTOR_SIZE:-768}
+    container_name: skillpolaris_pipeline_worker
+    env_file:
+      - ../.env
     networks:
       - skillpolaris
+    depends_on:
+      prefect-server:
+        condition: service_healthy
     restart: unless-stopped
