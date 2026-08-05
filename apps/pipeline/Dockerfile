@@ -21,4 +21,4 @@ COPY apps/pipeline/src ./apps/pipeline/src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --package pipeline
 
-CMD ["uv", "run", "--package", "pipeline", "python", "-m", "pipeline.extract.main"]
+CMD ["uv", "run", "--package", "pipeline", "python", "-m", "pipeline.flows.ingest"]
