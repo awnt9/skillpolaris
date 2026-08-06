@@ -1,14 +1,14 @@
 # Prefect server + pipeline worker (full Docker / prod-like).
-# Requires the data plane network: start data compose first.
+# Requires the data plane network (created by docker-compose.data.yml).
 #
-# Usage:
-#   make compose ARGS="up -d"
+# Preferred: make up
+# Or:
+#   make compose ARGS="up -d --wait"
 #   make compose-pipeline ARGS="up -d --build"
 #
-# UI: PREFECT_UI_API_URL in .env (browser URL)
-# Debug:
-#   docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker bash
-#   make pipeline-shell
+# Worker entrypoint runs alembic upgrade before starting.
+# UI: http://127.0.0.1:${PREFECT_PORT}
+# Debug: make pipeline-shell
 
 name: skillpolaris-pipeline
 

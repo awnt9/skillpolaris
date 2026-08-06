@@ -1,7 +1,7 @@
 FILE ?= .
 ARGS ?=
 
-.PHONY: lint fix format compose compose-pipeline compose-app \
+.PHONY: lint fix format up down compose compose-pipeline compose-app \
 	pipeline-shell pipeline sync-keywords prefect-deploy migrate migrate-docker
 
 lint:
@@ -13,7 +13,16 @@ fix:
 format:
 	uv run ruff format $(FILE)
 
-# Full Docker stack — e.g. make compose ARGS="up -d"
+# Full stack: data plane + Prefect/worker (migrations run in worker entrypoint).
+up:
+	docker compose -f infra/docker-compose.data.yml --env-file .env up -d --wait
+	docker compose -f infra/docker-compose.pipeline.yml --env-file .env up -d --build
+
+down:
+	docker compose -f infra/docker-compose.pipeline.yml --env-file .env down
+	docker compose -f infra/docker-compose.data.yml --env-file .env down
+
+# Individual planes — e.g. make compose ARGS="ps"
 compose:
 	docker compose -f infra/docker-compose.data.yml --env-file .env $(ARGS)
 
