@@ -6,6 +6,7 @@ from pipeline.config import Settings
 from pipeline.schemas.extract import SourcePolicy
 from pipeline.tasks.sources.base import AtsExtractor, DetailExtractor, FeedExtractor
 from pipeline.tasks.sources.france_travail import FranceTravailExtractor
+from pipeline.tasks.sources.remoteok import RemoteOkExtractor
 
 
 @dataclass
@@ -30,14 +31,19 @@ class ExtractorRegistry:
 
 def build_extractor_registry(configuration: Settings) -> ExtractorRegistry:
     france_travail = FranceTravailExtractor(configuration=configuration)
+    remoteok = RemoteOkExtractor(configuration=configuration)
 
     return ExtractorRegistry(
         detail={france_travail.source_name: france_travail},
-        feed={},
+        feed={remoteok.source_name: remoteok},
         ats={},
         policies={
             france_travail.source_name: SourcePolicy(
                 min_interval_seconds=1.0,
+                max_retries=2,
+            ),
+            remoteok.source_name: SourcePolicy(
+                min_interval_seconds=2.0,
                 max_retries=2,
             ),
         },
