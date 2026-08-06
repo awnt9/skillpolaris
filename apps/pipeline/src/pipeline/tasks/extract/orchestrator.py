@@ -10,6 +10,7 @@ from pipeline.tasks.extract.registry import build_extractor_registry
 from pipeline.tasks.extract.runners.ats_runner import run_ats_extract
 from pipeline.tasks.extract.runners.detail_runner import run_detail_extract
 from pipeline.tasks.extract.runners.feed_runner import run_feed_extract
+from prefect import get_run_logger
 
 
 def run_extract(
@@ -17,11 +18,13 @@ def run_extract(
     *,
     ats_company_slugs: list[str] | None = None,
 ) -> ExtractRunResult:
+    logger = get_run_logger()
     registry = build_extractor_registry(configuration)
     rate_limiter = SourceRateLimiter()
     result = ExtractRunResult()
 
     with PostgresManager(configuration) as store:
+        logger.info("Extract phase=detail starting")
         run_detail_extract(
             store=store,
             registry=registry,
@@ -29,12 +32,14 @@ def run_extract(
             rate_limiter=rate_limiter,
             result=result,
         )
+        logger.info("Extract phase=feed starting")
         run_feed_extract(
             store=store,
             registry=registry,
             rate_limiter=rate_limiter,
             result=result,
         )
+        logger.info("Extract phase=ats starting")
         run_ats_extract(
             store=store,
             registry=registry,
