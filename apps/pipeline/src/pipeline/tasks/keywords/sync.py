@@ -6,6 +6,7 @@ from pipeline.config import Settings, get_configuration
 from pipeline.storage.postgres import PostgresManager
 from pipeline.tasks.keywords.providers.base import KeywordProvider
 from pipeline.tasks.keywords.providers.esco import EscoKeywordProvider
+from pipeline.tasks.keywords.providers.manual import ManualKeywordProvider
 from prefect import get_run_logger, task
 
 
@@ -13,6 +14,7 @@ def build_keyword_providers(
     esco_groups: list[int] | None = None,
 ) -> list[KeywordProvider]:
     return [
+        ManualKeywordProvider(),
         EscoKeywordProvider(group_codes=esco_groups),
     ]
 
