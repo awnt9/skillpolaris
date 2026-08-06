@@ -29,6 +29,20 @@ services:
       timeout: 5s
       retries: 10
 
+  pgweb:
+    image: sosedoff/pgweb:latest
+    container_name: pgweb
+    restart: always
+    ports:
+      - "${PGWEB_PORT:-8081}:8081"
+    environment:
+      PGWEB_DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - skillpolaris
+
   qdrant:
     image: qdrant/qdrant:latest
     container_name: qdrant_db
