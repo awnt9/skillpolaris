@@ -96,25 +96,3 @@ class SearchKeywordRow(SQLModel, table=True):
         default=None,
         sa_column=Column(DateTime, server_default=func.now(), nullable=True),
     )
-
-
-class StagingJob(SQLModel, table=True):
-    """Legacy table kept for older datasets."""
-
-    __tablename__ = "staging_jobs"
-    __table_args__ = (UniqueConstraint("source", "job_id"),)
-
-    id: Optional[int] = Field(default=None, primary_key=True)
-    source: str
-    job_id: str
-    raw_content: dict[str, Any] = Field(sa_column=Column(JSONB, nullable=False))
-    keyword: Optional[str] = None
-    status: str = Field(default="pending")
-    extracted_at: Optional[datetime] = Field(
-        default=None,
-        sa_column=Column(DateTime, server_default=func.now(), nullable=True),
-    )
-    processed_at: Optional[datetime] = Field(
-        default=None,
-        sa_column=Column(DateTime, nullable=True),
-    )
