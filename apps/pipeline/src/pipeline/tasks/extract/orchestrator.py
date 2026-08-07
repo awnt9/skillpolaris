@@ -36,6 +36,7 @@ def run_extract(
         run_feed_extract(
             store=store,
             registry=registry,
+            configuration=configuration,
             rate_limiter=rate_limiter,
             result=result,
         )
