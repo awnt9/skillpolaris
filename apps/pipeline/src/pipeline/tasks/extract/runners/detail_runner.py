@@ -101,10 +101,8 @@ def run_detail_extract(
                     skipped,
                 )
 
-                if raw_ids and not new_ids:
-                    page += 1
-                    continue
-
+                page_saved_before = result.saved
+                page_failed_before = result.failed
                 for job_id in new_ids:
                     if result.saved >= budget:
                         break
@@ -124,15 +122,20 @@ def run_detail_extract(
                         result.failed += 1
 
                 logger.info(
-                    "Extract detail: source=%s keyword=%r page done "
+                    "Extract detail: source=%s keyword=%r page=%s done "
                     "saved+=%s failed+=%s total_saved=%s",
                     source_name,
                     keyword_row.keyword,
-                    result.saved - saved_before,
-                    result.failed - failed_before,
+                    page,
+                    result.saved - page_saved_before,
+                    result.failed - page_failed_before,
                     result.saved,
                 )
-                break
+
+                if result.saved >= budget:
+                    break
+
+                page += 1
 
             store.mark_keyword_searched(keyword_row.id)
             logger.info(
