@@ -3,7 +3,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 KeywordDimension = Literal["role", "stack", "seniority", "modality", "geo", "other"]
-KeywordOrigin = Literal["manual", "esco", "onet", "rome", "other"]
+KeywordOrigin = Literal["manual", "esco", "onet", "rome", "remoteok", "other"]
 
 
 class SearchKeyword(BaseModel):
