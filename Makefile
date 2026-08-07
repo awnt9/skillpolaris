@@ -2,7 +2,8 @@ FILE ?= .
 ARGS ?=
 
 .PHONY: lint fix format up down compose compose-pipeline compose-app \
-	pipeline-shell pipeline sync-keywords prefect-deploy migrate migrate-docker
+	pipeline-shell extract filter transform sync-keywords \
+	prefect-deploy migrate migrate-docker
 
 lint:
 	uv run ruff check $(FILE)
@@ -35,9 +36,18 @@ compose-app:
 pipeline-shell:
 	docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker bash
 
-pipeline:
+# Manual runs (one-shot inside the worker container)
+extract:
 	docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \
-		uv run --package pipeline python -m pipeline.flows.ingest
+		uv run --package pipeline python -m pipeline.flows.extract
+
+filter:
+	docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \
+		uv run --package pipeline python -m pipeline.flows.filter
+
+transform:
+	docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \
+		uv run --package pipeline python -m pipeline.flows.transform
 
 sync-keywords:
 	docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \
