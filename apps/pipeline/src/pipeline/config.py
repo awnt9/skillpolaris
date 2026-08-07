@@ -26,6 +26,20 @@ class Settings(BaseSettings):
 
     transform_batch_size: int = Field(alias="TRANSFORM_BATCH_SIZE")
     filter_batch_size: int = Field(alias="FILTER_BATCH_SIZE")
+    filter_min_description_chars: int = Field(
+        alias="FILTER_MIN_DESCRIPTION_CHARS",
+        ge=1,
+    )
+    filter_llm_excerpt_chars: int = Field(
+        alias="FILTER_LLM_EXCERPT_CHARS",
+        ge=100,
+    )
+    filter_llm_confidence: float = Field(
+        alias="FILTER_LLM_CONFIDENCE",
+        ge=0.0,
+        le=1.0,
+    )
+    filter_llm_model: str = Field(alias="FILTER_LLM_MODEL")
 
     so_tag_pages: int = Field(alias="SO_TAG_PAGES")
     so_min_count: int = Field(alias="SO_MIN_COUNT")
