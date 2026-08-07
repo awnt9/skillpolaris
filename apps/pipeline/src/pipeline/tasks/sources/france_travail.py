@@ -55,7 +55,9 @@ class FranceTravailExtractor(DetailExtractor):
     @handle_api_errors
     def search_ids(self, keyword: str, page: int) -> list[str]:
         url = "https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search"
-        range_param = f"{20 * page}-{20 * page + 19}"
+        page_size = self.configuration.france_travail_page_size
+        start = page_size * page
+        range_param = f"{start}-{start + page_size - 1}"
         params = FranceTravailRequestTemplate(
             motsCles=keyword, range=range_param
         ).model_dump(exclude_none=True)
