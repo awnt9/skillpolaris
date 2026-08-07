@@ -13,6 +13,11 @@ class Settings(BaseSettings):
 
     france_travail_client_id: str = Field(alias="FRANCE_TRAVAIL_CLIENT_ID")
     france_travail_client_secret: str = Field(alias="FRANCE_TRAVAIL_CLIENT_SECRET")
+    france_travail_page_size: int = Field(
+        alias="FRANCE_TRAVAIL_PAGE_SIZE",
+        ge=1,
+        le=150,
+    )
 
     max_total_details: int = Field(alias="MAX_TOTAL_DETAILS")
     max_depth: int = Field(alias="MAX_DEPTH")
@@ -21,6 +26,10 @@ class Settings(BaseSettings):
 
     transform_batch_size: int = Field(alias="TRANSFORM_BATCH_SIZE")
     filter_batch_size: int = Field(alias="FILTER_BATCH_SIZE")
+
+    so_tag_pages: int = Field(alias="SO_TAG_PAGES")
+    so_min_count: int = Field(alias="SO_MIN_COUNT")
+    so_api_key: str | None = Field(alias="SO_API_KEY")
 
     model: str = Field(alias="LLM_MODEL")
     ollama_base_url: str = Field(alias="OLLAMA_BASE_URL")

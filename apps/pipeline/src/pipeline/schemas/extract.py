@@ -2,7 +2,15 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-KeywordOrigin = Literal["manual", "esco", "onet", "rome", "remoteok", "other"]
+KeywordOrigin = Literal[
+    "manual",
+    "esco",
+    "stackoverflow",
+    "onet",
+    "rome",
+    "remoteok",
+    "other",
+]
 
 
 class SearchKeyword(BaseModel):
