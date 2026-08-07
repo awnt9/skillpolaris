@@ -2,16 +2,13 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-KeywordDimension = Literal["role", "stack", "seniority", "modality", "geo", "other"]
 KeywordOrigin = Literal["manual", "esco", "onet", "rome", "remoteok", "other"]
 
 
 class SearchKeyword(BaseModel):
     id: int
     keyword: str
-    dimension: KeywordDimension = "role"
     source_scope: str | None = None
-    priority: int = 0
     origin: KeywordOrigin
     active: bool = True
     last_searched_at: str | None = None
@@ -20,9 +17,7 @@ class SearchKeyword(BaseModel):
 
 class SearchKeywordUpsert(BaseModel):
     keyword: str
-    dimension: KeywordDimension = "role"
     source_scope: str | None = None
-    priority: int = 0
     origin: KeywordOrigin
     active: bool = True
 

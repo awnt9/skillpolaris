@@ -122,16 +122,13 @@ class PostgresManager:
             for item in keywords:
                 statement = insert(SearchKeywordRow).values(
                     keyword=item.keyword,
-                    dimension=item.dimension,
                     source_scope=item.source_scope or "",
-                    priority=item.priority,
                     origin=item.origin,
                     active=item.active,
                 )
                 statement = statement.on_conflict_do_update(
-                    index_elements=["keyword", "dimension", "source_scope"],
+                    index_elements=["keyword", "source_scope"],
                     set_={
-                        "priority": statement.excluded.priority,
                         "origin": statement.excluded.origin,
                         "active": statement.excluded.active,
                     },
@@ -204,7 +201,6 @@ class PostgresManager:
                 )
             statement = (
                 statement.order_by(
-                    col(SearchKeywordRow.priority).desc(),
                     col(SearchKeywordRow.raw_jobs_count).asc(),
                     col(SearchKeywordRow.last_searched_at).asc().nulls_first(),
                     col(SearchKeywordRow.id).asc(),
@@ -216,9 +212,7 @@ class PostgresManager:
                 SearchKeyword(
                     id=row.id,
                     keyword=row.keyword,
-                    dimension=row.dimension,  # type: ignore[arg-type]
                     source_scope=row.source_scope or None,
-                    priority=row.priority,
                     origin=row.origin,  # type: ignore[arg-type]
                     active=row.active,
                     last_searched_at=(
@@ -297,8 +291,6 @@ class PostgresManager:
                     title=job.title,
                     description=job.description,
                     url=job.url,
-                    company=job.company,
-                    location=job.location,
                     posted_at=job.posted_at,
                     keyword=job.keyword,
                     transform_status="pending",

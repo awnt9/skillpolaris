@@ -49,8 +49,6 @@ class EscoKeywordProvider(KeywordProvider):
         return [
             SearchKeywordUpsert(
                 keyword=title,
-                dimension="role",
-                priority=3,
                 origin="esco",
             )
             for title in titles

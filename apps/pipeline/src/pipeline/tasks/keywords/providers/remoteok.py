@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from collections import Counter
-
 import requests
 from pipeline.schemas.extract import SearchKeywordUpsert
 from pipeline.tasks.keywords.providers.base import KeywordProvider
@@ -41,7 +39,7 @@ class RemoteOkTagProvider(KeywordProvider):
         if not isinstance(payload, list):
             return []
 
-        counts: Counter[str] = Counter()
+        tags: set[str] = set()
         for item in payload:
             if not isinstance(item, dict) or item.get("id") is None:
                 continue
@@ -50,15 +48,13 @@ class RemoteOkTagProvider(KeywordProvider):
                     continue
                 normalized = tag.strip().lower()
                 if normalized:
-                    counts[normalized] += 1
+                    tags.add(normalized)
 
         return [
             SearchKeywordUpsert(
                 keyword=tag,
-                dimension="other",
                 source_scope=SOURCE_SCOPE,
-                priority=count,
                 origin="remoteok",
             )
-            for tag, count in sorted(counts.items())
+            for tag in sorted(tags)
         ]

@@ -53,8 +53,6 @@ class CanonicalJob(SQLModel, table=True):
     title: str = Field(sa_column=Column(Text, nullable=False))
     description: str = Field(sa_column=Column(Text, nullable=False))
     url: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
-    company: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
-    location: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
     posted_at: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
     keyword: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
     transform_status: str = Field(
@@ -73,13 +71,11 @@ class CanonicalJob(SQLModel, table=True):
 
 class SearchKeywordRow(SQLModel, table=True):
     __tablename__ = "search_keywords"
-    __table_args__ = (UniqueConstraint("keyword", "dimension", "source_scope"),)
+    __table_args__ = (UniqueConstraint("keyword", "source_scope"),)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     keyword: str
-    dimension: str = Field(default="role")
     source_scope: str = Field(default="")
-    priority: int = Field(default=0)
     origin: str
     active: bool = Field(default=True)
     last_searched_at: Optional[datetime] = Field(
