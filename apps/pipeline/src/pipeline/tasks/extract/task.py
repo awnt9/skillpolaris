@@ -17,9 +17,10 @@ def extract_task(
         ats_company_slugs=ats_company_slugs,
     )
     logger.info(
-        "Extract finished. keywords_used=%s saved=%s failed=%s",
+        "Extract finished. keywords_used=%s saved=%s failed=%s skipped=%s",
         result["keywords_used"],
         result["saved"],
         result["failed"],
+        result["skipped"],
     )
     return result

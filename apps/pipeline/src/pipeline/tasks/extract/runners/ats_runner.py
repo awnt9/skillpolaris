@@ -35,6 +35,7 @@ def run_ats_extract(
             rate_limiter.wait(source_name, policy.min_interval_seconds)
             saved_before = result.saved
             failed_before = result.failed
+            skipped_before = result.skipped
             logger.info("Extract ats: source=%s board=%s starting", source_name, slug)
 
             try:
@@ -58,15 +59,19 @@ def run_ats_extract(
             for payload in postings:
                 try:
                     raw_job = extractor.to_raw_job(payload, company_slug=slug)
-                    store.save_raw_job(raw_job=raw_job)
-                    result.saved += 1
+                    if store.save_raw_job(raw_job=raw_job):
+                        result.saved += 1
+                    else:
+                        result.skipped += 1
                 except Exception:  # noqa: BLE001 — per-offer boundary
                     result.failed += 1
 
             logger.info(
-                "Extract ats: source=%s board=%s closed saved+=%s failed+=%s",
+                "Extract ats: source=%s board=%s closed saved+=%s failed+=%s "
+                "skipped+=%s",
                 source_name,
                 slug,
                 result.saved - saved_before,
                 result.failed - failed_before,
+                result.skipped - skipped_before,
             )

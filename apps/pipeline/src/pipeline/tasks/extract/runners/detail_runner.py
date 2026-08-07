@@ -22,8 +22,7 @@ def _fetch_and_save(
     if not detail:
         return False
     raw_job = extractor.to_raw_job(detail, keyword=keyword)
-    store.save_raw_job(raw_job=raw_job)
-    return True
+    return store.save_raw_job(raw_job=raw_job)
 
 
 def run_detail_extract(

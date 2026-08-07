@@ -83,7 +83,8 @@ class PostgresManager:
             self.session.rollback()
             return []
 
-    def save_raw_job(self, raw_job: RawJobRecord) -> None:
+    def save_raw_job(self, raw_job: RawJobRecord) -> bool:
+        """Insert a raw job. Returns True if a new row was written."""
         try:
             statement = (
                 insert(RawJob)
@@ -103,14 +104,16 @@ class PostgresManager:
                 )
                 .on_conflict_do_nothing(index_elements=["source", "job_id"])
             )
-            self.session.execute(statement)
+            result = self.session.execute(statement)
             self.session.commit()
+            return (result.rowcount or 0) > 0
         except SQLAlchemyError as e:
             print(
                 f" ERROR on PostgresManager: Could not save raw job on "
                 f"{raw_job.source}. Cause: {e}"
             )
             self.session.rollback()
+            return False
 
     def upsert_search_keywords(self, keywords: list[SearchKeywordUpsert]) -> int:
         if not keywords:
@@ -175,16 +178,24 @@ class PostgresManager:
         source_name: str,
         limit: int,
         cooldown_hours: int = 0,
+        scoped_only: bool = False,
     ) -> list[SearchKeyword]:
         try:
             statement = select(SearchKeywordRow).where(
                 SearchKeywordRow.active.is_(True),
-                or_(
-                    SearchKeywordRow.source_scope.is_(None),
-                    SearchKeywordRow.source_scope == "",
-                    SearchKeywordRow.source_scope == source_name,
-                ),
             )
+            if scoped_only:
+                statement = statement.where(
+                    SearchKeywordRow.source_scope == source_name,
+                )
+            else:
+                statement = statement.where(
+                    or_(
+                        SearchKeywordRow.source_scope.is_(None),
+                        SearchKeywordRow.source_scope == "",
+                        SearchKeywordRow.source_scope == source_name,
+                    ),
+                )
             if cooldown_hours > 0:
                 cutoff = datetime.now(timezone.utc) - timedelta(hours=cooldown_hours)
                 statement = statement.where(
