@@ -11,9 +11,9 @@ import urllib.error
 import urllib.request
 
 from pipeline.flows.extract import extract_flow
-from pipeline.flows.filter import filter_flow
+# from pipeline.flows.filter import filter_flow
 from pipeline.flows.sync_keywords import sync_keywords_flow
-from pipeline.flows.transform import transform_flow
+# from pipeline.flows.transform import transform_flow
 from prefect.types.entrypoint import EntrypointType
 
 logger = logging.getLogger(__name__)
@@ -120,14 +120,14 @@ def register_deployments(
     *,
     pool_name: str | None = None,
     extract_cron: str | None = None,
-    filter_cron: str | None = None,
-    transform_cron: str | None = None,
+    # filter_cron: str | None = None,
+    # transform_cron: str | None = None,
     sync_keywords_cron: str | None = None,
 ) -> None:
     pool = pool_name or require_env("PREFECT_WORK_POOL")
     extract_cron = extract_cron or require_env("EXTRACT_CRON")
-    filter_cron = filter_cron or require_env("FILTER_CRON")
-    transform_cron = transform_cron or require_env("TRANSFORM_CRON")
+    # filter_cron = filter_cron or require_env("FILTER_CRON")
+    # transform_cron = transform_cron or require_env("TRANSFORM_CRON")
     sync_cron = sync_keywords_cron or require_env("SYNC_KEYWORDS_CRON")
 
     wait_for_prefect_api()
@@ -143,25 +143,26 @@ def register_deployments(
     )
     logger.info("Registered extract-jobs/scheduled cron=%r", extract_cron)
 
-    _deploy_scheduled(
-        flow=filter_flow,
-        name="scheduled",
-        pool=pool,
-        cron=filter_cron,
-        tags=["skillpolaris", "filter"],
-        description="Scheduled filter: raw_jobs (pending) → canonical_jobs.",
-    )
-    logger.info("Registered filter-jobs/scheduled cron=%r", filter_cron)
-
-    _deploy_scheduled(
-        flow=transform_flow,
-        name="scheduled",
-        pool=pool,
-        cron=transform_cron,
-        tags=["skillpolaris", "transform"],
-        description="Scheduled transform: canonical_jobs (pending) → Qdrant.",
-    )
-    logger.info("Registered transform-jobs/scheduled cron=%r", transform_cron)
+    # Paused until filter/transform are production-ready.
+    # _deploy_scheduled(
+    #     flow=filter_flow,
+    #     name="scheduled",
+    #     pool=pool,
+    #     cron=filter_cron,
+    #     tags=["skillpolaris", "filter"],
+    #     description="Scheduled filter: raw_jobs (pending) → canonical_jobs.",
+    # )
+    # logger.info("Registered filter-jobs/scheduled cron=%r", filter_cron)
+    #
+    # _deploy_scheduled(
+    #     flow=transform_flow,
+    #     name="scheduled",
+    #     pool=pool,
+    #     cron=transform_cron,
+    #     tags=["skillpolaris", "transform"],
+    #     description="Scheduled transform: canonical_jobs (pending) → Qdrant.",
+    # )
+    # logger.info("Registered transform-jobs/scheduled cron=%r", transform_cron)
 
     _deploy_scheduled(
         flow=sync_keywords_flow,
