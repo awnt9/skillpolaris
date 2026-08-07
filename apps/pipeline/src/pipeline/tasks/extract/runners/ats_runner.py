@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pipeline.config import Settings
 from pipeline.schemas.extract import ExtractRunResult
 from pipeline.storage.postgres import PostgresManager
 from pipeline.tasks.extract.rate_limit import SourceRateLimiter
@@ -13,25 +14,40 @@ def run_ats_extract(
     *,
     store: PostgresManager,
     registry: ExtractorRegistry,
+    configuration: Settings,
     rate_limiter: SourceRateLimiter,
     result: ExtractRunResult,
     company_slugs: list[str],
 ) -> None:
     logger = get_run_logger()
+    budget = configuration.max_total_details
 
     if not company_slugs:
         logger.info("Extract ats: no company_slugs, skipping")
         return
 
+    if not registry.ats:
+        logger.info("Extract ats: no ats extractors registered, skipping")
+        return
+
     for source_name, extractor in registry.ats.items():
         policy = registry.policy_for(source_name)
+        phase_saved = 0
         logger.info(
-            "Extract ats: source=%s boards=%s",
+            "Extract ats: source=%s boards=%s budget=%s",
             source_name,
             len(company_slugs),
+            budget,
         )
 
         for slug in company_slugs:
+            if phase_saved >= budget:
+                logger.info(
+                    "Extract ats: budget reached (saved=%s), stopping boards",
+                    phase_saved,
+                )
+                break
+
             rate_limiter.wait(source_name, policy.min_interval_seconds)
             saved_before = result.saved
             failed_before = result.failed
@@ -57,10 +73,13 @@ def run_ats_extract(
             )
 
             for payload in postings:
+                if phase_saved >= budget:
+                    break
                 try:
                     raw_job = extractor.to_raw_job(payload, company_slug=slug)
                     if store.save_raw_job(raw_job=raw_job):
                         result.saved += 1
+                        phase_saved += 1
                     else:
                         result.skipped += 1
                 except Exception:  # noqa: BLE001 — per-offer boundary

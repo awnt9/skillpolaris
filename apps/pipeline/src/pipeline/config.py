@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     so_min_count: int = Field(alias="SO_MIN_COUNT")
     so_api_key: str | None = Field(alias="SO_API_KEY")
 
+    # Comma-separated Greenhouse board tokens (e.g. "figma,stripe").
+    greenhouse_board_tokens: str = Field(alias="GREENHOUSE_BOARD_TOKENS")
+
     model: str = Field(alias="LLM_MODEL")
     ollama_base_url: str = Field(alias="OLLAMA_BASE_URL")
     ollama_api_key: str = Field(alias="OLLAMA_API_KEY")

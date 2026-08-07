@@ -10,6 +10,7 @@ from pipeline.tasks.extract.registry import build_extractor_registry
 from pipeline.tasks.extract.runners.ats_runner import run_ats_extract
 from pipeline.tasks.extract.runners.detail_runner import run_detail_extract
 from pipeline.tasks.extract.runners.feed_runner import run_feed_extract
+from pipeline.tasks.sources.greenhouse import parse_greenhouse_board_tokens
 from prefect import get_run_logger
 
 
@@ -22,6 +23,9 @@ def run_extract(
     registry = build_extractor_registry(configuration)
     rate_limiter = SourceRateLimiter()
     result = ExtractRunResult()
+    board_slugs = ats_company_slugs or parse_greenhouse_board_tokens(
+        configuration.greenhouse_board_tokens
+    )
 
     with PostgresManager(configuration) as store:
         logger.info("Extract phase=detail starting")
@@ -44,9 +48,10 @@ def run_extract(
         run_ats_extract(
             store=store,
             registry=registry,
+            configuration=configuration,
             rate_limiter=rate_limiter,
             result=result,
-            company_slugs=ats_company_slugs or [],
+            company_slugs=board_slugs,
         )
 
     return result
