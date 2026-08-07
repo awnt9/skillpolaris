@@ -25,11 +25,6 @@ class RawJob(SQLModel, table=True):
         sa_column=Column(Text, nullable=True),
     )
     url: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
-    company_raw: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
-    location_raw: Optional[str] = Field(
-        default=None,
-        sa_column=Column(Text, nullable=True),
-    )
     posted_at_raw: Optional[str] = Field(
         default=None,
         sa_column=Column(Text, nullable=True),

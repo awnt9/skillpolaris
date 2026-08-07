@@ -25,8 +25,6 @@ class RawJobRecord(BaseModel):
     title_raw: str
     description_raw: str
     url: str | None = None
-    company_raw: str | None = None
-    location_raw: str | None = None
     posted_at_raw: str | None = None
     raw_payload: dict[str, Any]
 
@@ -41,8 +39,6 @@ class PendingRawJob(BaseModel):
     title_raw: str
     description_raw: str
     url: str | None = None
-    company_raw: str | None = None
-    location_raw: str | None = None
     posted_at_raw: str | None = None
 
 

@@ -80,8 +80,6 @@ class RemoteOkExtractor(FeedExtractor):
             title_raw=payload.get("position") or "",
             description_raw=description,
             url=payload.get("url") or payload.get("apply_url"),
-            company_raw=payload.get("company"),
-            location_raw=(payload.get("location") or None),
             posted_at_raw=payload.get("date"),
             raw_payload=payload,
         )

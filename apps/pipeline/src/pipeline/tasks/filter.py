@@ -68,8 +68,6 @@ def run_filter(configuration: Settings) -> dict[str, int]:
                         title=raw_job.title_raw.strip(),
                         description=clean_description(raw_job.description_raw),
                         url=raw_job.url,
-                        company=raw_job.company_raw,
-                        location=raw_job.location_raw,
                         posted_at=raw_job.posted_at_raw,
                         keyword=raw_job.keyword,
                     )

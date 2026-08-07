@@ -97,8 +97,6 @@ class FranceTravailExtractor(DetailExtractor):
         company_slug: str | None = None,
     ) -> RawJobRecord:
         del company_slug
-        location = payload.get("lieuTravail", {})
-        company = payload.get("entreprise", {})
 
         return RawJobRecord(
             source=self.source_name,
@@ -108,8 +106,6 @@ class FranceTravailExtractor(DetailExtractor):
             title_raw=payload["intitule"],
             description_raw=payload["description"],
             url=payload.get("origineOffre", {}).get("urlOrigine"),
-            company_raw=company.get("nom"),
-            location_raw=location.get("libelle"),
             posted_at_raw=payload.get("dateCreation"),
             raw_payload=payload,
         )

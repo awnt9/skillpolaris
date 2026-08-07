@@ -96,8 +96,6 @@ class PostgresManager:
                     title_raw=raw_job.title_raw,
                     description_raw=raw_job.description_raw,
                     url=raw_job.url,
-                    company_raw=raw_job.company_raw,
-                    location_raw=raw_job.location_raw,
                     posted_at_raw=raw_job.posted_at_raw,
                     raw_payload=raw_job.raw_payload,
                     filter_status="pending",
@@ -275,8 +273,6 @@ class PostgresManager:
                     title_raw=row.title_raw or "",
                     description_raw=row.description_raw or "",
                     url=row.url,
-                    company_raw=row.company_raw,
-                    location_raw=row.location_raw,
                     posted_at_raw=row.posted_at_raw,
                 )
                 for row in rows
