@@ -10,8 +10,10 @@ import time
 import urllib.error
 import urllib.request
 
-from pipeline.flows.ingest import ingest_flow
+from pipeline.flows.extract import extract_flow
+from pipeline.flows.filter import filter_flow
 from pipeline.flows.sync_keywords import sync_keywords_flow
+from pipeline.flows.transform import transform_flow
 from prefect.types.entrypoint import EntrypointType
 
 logger = logging.getLogger(__name__)
@@ -91,43 +93,82 @@ def ensure_work_pool(pool_name: str) -> None:
     raise RuntimeError(f"Could not create work pool {pool_name}")
 
 
+def _deploy_scheduled(
+    *,
+    flow,
+    name: str,
+    pool: str,
+    cron: str,
+    tags: list[str],
+    description: str,
+) -> None:
+    flow.deploy(
+        name=name,
+        work_pool_name=pool,
+        cron=cron,
+        build=False,
+        push=False,
+        print_next_steps=False,
+        entrypoint_type=EntrypointType.MODULE_PATH,
+        tags=tags,
+        concurrency_limit=1,
+        description=description,
+    )
+
+
 def register_deployments(
     *,
     pool_name: str | None = None,
-    ingest_cron: str | None = None,
+    extract_cron: str | None = None,
+    filter_cron: str | None = None,
+    transform_cron: str | None = None,
     sync_keywords_cron: str | None = None,
 ) -> None:
     pool = pool_name or require_env("PREFECT_WORK_POOL")
-    ingest_cron = ingest_cron or require_env("INGEST_CRON")
+    extract_cron = extract_cron or require_env("EXTRACT_CRON")
+    filter_cron = filter_cron or require_env("FILTER_CRON")
+    transform_cron = transform_cron or require_env("TRANSFORM_CRON")
     sync_cron = sync_keywords_cron or require_env("SYNC_KEYWORDS_CRON")
 
     wait_for_prefect_api()
     ensure_work_pool(pool)
 
-    ingest_flow.deploy(
+    _deploy_scheduled(
+        flow=extract_flow,
         name="scheduled",
-        work_pool_name=pool,
-        cron=ingest_cron,
-        build=False,
-        push=False,
-        print_next_steps=False,
-        entrypoint_type=EntrypointType.MODULE_PATH,
-        tags=["skillpolaris", "ingest"],
-        concurrency_limit=1,
-        description="Scheduled ingest (extract → filter → transform).",
+        pool=pool,
+        cron=extract_cron,
+        tags=["skillpolaris", "extract"],
+        description="Scheduled extract: sources → raw_jobs.",
     )
-    logger.info("Registered ingest-jobs/scheduled cron=%r", ingest_cron)
+    logger.info("Registered extract-jobs/scheduled cron=%r", extract_cron)
 
-    sync_keywords_flow.deploy(
+    _deploy_scheduled(
+        flow=filter_flow,
         name="scheduled",
-        work_pool_name=pool,
+        pool=pool,
+        cron=filter_cron,
+        tags=["skillpolaris", "filter"],
+        description="Scheduled filter: raw_jobs (pending) → canonical_jobs.",
+    )
+    logger.info("Registered filter-jobs/scheduled cron=%r", filter_cron)
+
+    _deploy_scheduled(
+        flow=transform_flow,
+        name="scheduled",
+        pool=pool,
+        cron=transform_cron,
+        tags=["skillpolaris", "transform"],
+        description="Scheduled transform: canonical_jobs (pending) → Qdrant.",
+    )
+    logger.info("Registered transform-jobs/scheduled cron=%r", transform_cron)
+
+    _deploy_scheduled(
+        flow=sync_keywords_flow,
+        name="scheduled",
+        pool=pool,
         cron=sync_cron,
-        build=False,
-        push=False,
-        print_next_steps=False,
-        entrypoint_type=EntrypointType.MODULE_PATH,
         tags=["skillpolaris", "keywords"],
-        concurrency_limit=1,
         description="Scheduled keyword catalog sync.",
     )
     logger.info("Registered sync-keywords/scheduled cron=%r", sync_cron)
