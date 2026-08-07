@@ -86,15 +86,20 @@ class DetailExtractor(BaseExtractor):
 
 
 class FeedExtractor(BaseExtractor):
-    """Full-feed / cursor-paginated sources (no keyword search)."""
+    """Feed sources: optional tag/keyword windows and/or cursor pagination."""
 
     @property
     def extractor_kind(self) -> ExtractorKind:
         return "feed"
 
     @abstractmethod
-    def fetch_batch(self, cursor: str | None = None) -> FeedBatch:
-        """Fetch the next feed window."""
+    def fetch_batch(
+        self,
+        cursor: str | None = None,
+        *,
+        keyword: str | None = None,
+    ) -> FeedBatch:
+        """Fetch the next feed window, optionally filtered by keyword/tag."""
 
 
 class AtsExtractor(BaseExtractor):

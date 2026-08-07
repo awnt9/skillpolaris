@@ -13,7 +13,7 @@ USER_AGENT = "SkillPolaris/0.1 (academic research; feed ingest)"
 
 
 class RemoteOkExtractor(FeedExtractor):
-    """Pulls the full RemoteOK JSON board in a single batch."""
+    """Pulls RemoteOK JSON windows, optionally filtered by board tag."""
 
     def __init__(self, configuration):
         super().__init__(configuration=configuration)
@@ -28,11 +28,24 @@ class RemoteOkExtractor(FeedExtractor):
     def source_name(self) -> str:
         return "remoteok"
 
-    def fetch_batch(self, cursor: str | None = None) -> FeedBatch:
-        # RemoteOK returns the full board; no cursor pagination.
+    def fetch_batch(
+        self,
+        cursor: str | None = None,
+        *,
+        keyword: str | None = None,
+    ) -> FeedBatch:
+        # RemoteOK returns a flat recent window; no cursor pagination.
         del cursor
+        params: dict[str, str] = {}
+        if keyword:
+            params["tag"] = keyword
+
         try:
-            response = self.session.get(REMOTEOK_API_URL, timeout=30)
+            response = self.session.get(
+                REMOTEOK_API_URL,
+                params=params or None,
+                timeout=30,
+            )
             response.raise_for_status()
             payload = response.json()
         except Exception as exc:  # noqa: BLE001 — feed boundary
@@ -57,12 +70,13 @@ class RemoteOkExtractor(FeedExtractor):
         keyword: str | None = None,
         company_slug: str | None = None,
     ) -> RawJobRecord:
-        del keyword, company_slug
+        del company_slug
         description = payload.get("description") or ""
         return RawJobRecord(
             source=self.source_name,
             external_id=str(payload["id"]),
             extractor_kind=self.extractor_kind,
+            keyword=keyword,
             title_raw=payload.get("position") or "",
             description_raw=description,
             url=payload.get("url") or payload.get("apply_url"),
