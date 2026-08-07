@@ -51,8 +51,6 @@ class CanonicalJobOffer(BaseModel):
     title: str
     description: str
     url: str | None = None
-    company: str | None = None
-    location: str | None = None
     posted_at: str | None = None
     keyword: str | None = None
 
