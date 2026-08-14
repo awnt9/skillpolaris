@@ -4,10 +4,10 @@ from dataclasses import dataclass, field
 
 from pipeline.config import Settings
 from pipeline.schemas.extract import SourcePolicy
-from pipeline.tasks.sources.base import AtsExtractor, DetailExtractor, FeedExtractor
-from pipeline.tasks.sources.france_travail import FranceTravailExtractor
-from pipeline.tasks.sources.greenhouse import GreenhouseExtractor
-from pipeline.tasks.sources.remoteok import RemoteOkExtractor
+from pipeline.tasks.extract.sources.base import AtsExtractor, DetailExtractor, FeedExtractor
+from pipeline.tasks.extract.sources.france_travail import FranceTravailExtractor
+from pipeline.tasks.extract.sources.greenhouse import GreenhouseExtractor
+from pipeline.tasks.extract.sources.remoteok import RemoteOkExtractor
 
 
 @dataclass

@@ -7,7 +7,7 @@ from pipeline.schemas.extract import ExtractRunResult
 from pipeline.storage.postgres import PostgresManager
 from pipeline.tasks.extract.rate_limit import SourceRateLimiter
 from pipeline.tasks.extract.registry import ExtractorRegistry
-from pipeline.tasks.sources.base import DetailExtractor
+from pipeline.tasks.extract.sources.base import DetailExtractor
 from prefect import get_run_logger
 
 

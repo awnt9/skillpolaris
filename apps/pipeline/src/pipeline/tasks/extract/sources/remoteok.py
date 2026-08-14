@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from pipeline.schemas.jobs import FeedBatch, RawJobRecord
-from pipeline.tasks.sources.base import FeedExtractor
+from pipeline.tasks.extract.sources.base import FeedExtractor
 from rich import print
 
 REMOTEOK_API_URL = "https://remoteok.com/api"

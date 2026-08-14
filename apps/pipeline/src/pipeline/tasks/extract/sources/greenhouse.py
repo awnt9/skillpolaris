@@ -7,7 +7,7 @@ from html import unescape
 from typing import Any
 
 from pipeline.schemas.jobs import RawJobRecord
-from pipeline.tasks.sources.base import AtsExtractor, handle_api_errors
+from pipeline.tasks.extract.sources.base import AtsExtractor, handle_api_errors
 from rich import print
 
 GREENHOUSE_JOBS_URL = (

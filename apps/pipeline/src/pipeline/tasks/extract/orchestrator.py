@@ -10,7 +10,7 @@ from pipeline.tasks.extract.registry import build_extractor_registry
 from pipeline.tasks.extract.runners.ats_runner import run_ats_extract
 from pipeline.tasks.extract.runners.detail_runner import run_detail_extract
 from pipeline.tasks.extract.runners.feed_runner import run_feed_extract
-from pipeline.tasks.sources.greenhouse import parse_greenhouse_board_tokens
+from pipeline.tasks.extract.sources.greenhouse import parse_greenhouse_board_tokens
 from prefect import get_run_logger
 
 

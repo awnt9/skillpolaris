@@ -5,7 +5,7 @@ from __future__ import annotations
 import requests
 from pipeline.schemas.extract import SearchKeywordUpsert
 from pipeline.tasks.keywords.providers.base import KeywordProvider
-from pipeline.tasks.sources.remoteok import REMOTEOK_API_URL, USER_AGENT
+from pipeline.tasks.extract.sources.remoteok import REMOTEOK_API_URL, USER_AGENT
 
 SOURCE_SCOPE = "remoteok"
 
