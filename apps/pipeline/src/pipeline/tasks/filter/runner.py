@@ -35,8 +35,8 @@ def run_filter(configuration: Settings) -> dict[str, int]:
         raise RuntimeError("FILTER_LLM_MODEL is empty; set it before running filter")
 
     gate = FilterLlmGate(
-        base_url=configuration.ollama_base_url,
-        api_key=configuration.ollama_api_key,
+        base_url=configuration.llm_base_url,
+        api_key=configuration.llm_api_key,
         model=configuration.filter_llm_model,
     )
 

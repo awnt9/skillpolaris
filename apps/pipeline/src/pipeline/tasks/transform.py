@@ -89,14 +89,14 @@ def build_embedded_job_offer(
 
 def run_transform(configuration: Settings) -> dict[str, int]:
     embedding_service = EmbeddingGenerator(
-        base_url=configuration.ollama_base_url,
-        api_key=configuration.ollama_api_key,
+        base_url=configuration.embedding_base_url,
+        api_key=configuration.embedding_api_key,
         model=configuration.embedding_model,
     )
     metadata_service = MetadataGenerator(
-        base_url=configuration.ollama_base_url,
-        api_key=configuration.ollama_api_key,
-        model=configuration.model,
+        base_url=configuration.llm_base_url,
+        api_key=configuration.llm_api_key,
+        model=configuration.llm_model,
     )
 
     processed = 0

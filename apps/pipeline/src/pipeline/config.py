@@ -48,9 +48,14 @@ class Settings(BaseSettings):
     # Comma-separated Greenhouse board tokens (e.g. "figma,stripe").
     greenhouse_board_tokens: str = Field(alias="GREENHOUSE_BOARD_TOKENS")
 
-    model: str = Field(alias="LLM_MODEL")
-    ollama_base_url: str = Field(alias="OLLAMA_BASE_URL")
-    ollama_api_key: str = Field(alias="OLLAMA_API_KEY")
+    # Chat (filter gate + transform metadata). OpenAI-compatible endpoint.
+    llm_base_url: str = Field(alias="LLM_BASE_URL")
+    llm_api_key: str = Field(alias="LLM_API_KEY")
+    llm_model: str = Field(alias="LLM_MODEL")
+
+    # Embeddings (Qdrant). Independent OpenAI-compatible endpoint.
+    embedding_base_url: str = Field(alias="EMBEDDING_BASE_URL")
+    embedding_api_key: str = Field(alias="EMBEDDING_API_KEY")
     embedding_model: str = Field(alias="EMBEDDING_MODEL")
 
     qdrant_host: str = Field(alias="QDRANT_HOST")
