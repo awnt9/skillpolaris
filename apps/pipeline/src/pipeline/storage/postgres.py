@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+from pipeline.schemas.enrich import JobOfferMetadata, normalized_skills
 from pipeline.schemas.extract import SearchKeyword, SearchKeywordUpsert
 from pipeline.schemas.jobs import (
     CanonicalJobOffer,
@@ -11,8 +12,8 @@ from pipeline.schemas.jobs import (
     PendingRawJob,
     RawJobRecord,
 )
-from pipeline.storage.models import CanonicalJob, RawJob, SearchKeywordRow
-from sqlalchemy import func, or_, text
+from pipeline.storage.models import CanonicalJob, CanonicalJobSkill, RawJob, SearchKeywordRow, Skill
+from sqlalchemy import delete, func, or_, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, col, create_engine, select
@@ -76,10 +77,7 @@ class PostgresManager:
             self.session.commit()
             return [job_id for job_id in raw_ids if job_id not in existing_ids]
         except SQLAlchemyError as e:
-            print(
-                f" ERROR on PostgresManager: Could not filter IDs for {source_name}. "
-                f"Cause: {e}"
-            )
+            print(f" ERROR on PostgresManager: Could not filter IDs for {source_name}. Cause: {e}")
             self.session.rollback()
             return []
 
@@ -107,8 +105,7 @@ class PostgresManager:
             return (result.rowcount or 0) > 0
         except SQLAlchemyError as e:
             print(
-                f" ERROR on PostgresManager: Could not save raw job on "
-                f"{raw_job.source}. Cause: {e}"
+                f" ERROR on PostgresManager: Could not save raw job on {raw_job.source}. Cause: {e}"
             )
             self.session.rollback()
             return False
@@ -161,10 +158,7 @@ class PostgresManager:
             )
             self.session.commit()
         except SQLAlchemyError as e:
-            print(
-                f" ERROR on PostgresManager: Could not refresh keyword counts. "
-                f"Cause: {e}"
-            )
+            print(f" ERROR on PostgresManager: Could not refresh keyword counts. Cause: {e}")
             self.session.rollback()
 
     def get_keywords_for_extract(
@@ -199,13 +193,11 @@ class PostgresManager:
                         SearchKeywordRow.last_searched_at < cutoff,
                     )
                 )
-            statement = (
-                statement.order_by(
-                    col(SearchKeywordRow.raw_jobs_count).asc(),
-                    col(SearchKeywordRow.last_searched_at).asc().nulls_first(),
-                    col(SearchKeywordRow.id).asc(),
-                ).limit(limit)
-            )
+            statement = statement.order_by(
+                col(SearchKeywordRow.raw_jobs_count).asc(),
+                col(SearchKeywordRow.last_searched_at).asc().nulls_first(),
+                col(SearchKeywordRow.id).asc(),
+            ).limit(limit)
             rows = self.session.exec(statement).all()
             self.session.commit()
             return [
@@ -224,10 +216,7 @@ class PostgresManager:
                 if row.id is not None
             ]
         except SQLAlchemyError as e:
-            print(
-                f" ERROR on PostgresManager: Could not get keywords for extract. "
-                f"Cause: {e}"
-            )
+            print(f" ERROR on PostgresManager: Could not get keywords for extract. Cause: {e}")
             self.session.rollback()
             return []
 
@@ -240,10 +229,7 @@ class PostgresManager:
             self.session.add(row)
             self.session.commit()
         except SQLAlchemyError as e:
-            print(
-                f" ERROR on PostgresManager: Could not mark keyword searched. "
-                f"Cause: {e}"
-            )
+            print(f" ERROR on PostgresManager: Could not mark keyword searched. Cause: {e}")
             self.session.rollback()
 
     def get_pending_filter_jobs(self, limit: int | None = None) -> list[PendingRawJob]:
@@ -273,10 +259,7 @@ class PostgresManager:
                 if row.id is not None
             ]
         except SQLAlchemyError as e:
-            print(
-                f" ERROR on PostgresManager: Could not get pending filter jobs. "
-                f"Cause: {e}"
-            )
+            print(f" ERROR on PostgresManager: Could not get pending filter jobs. Cause: {e}")
             self.session.rollback()
             return []
 
@@ -293,7 +276,7 @@ class PostgresManager:
                     url=job.url,
                     posted_at=job.posted_at,
                     keyword=job.keyword,
-                    transform_status="pending",
+                    enrich_status="pending",
                 )
                 .on_conflict_do_nothing(index_elements=["source", "job_id"])
             )
@@ -328,13 +311,11 @@ class PostgresManager:
             )
             self.session.rollback()
 
-    def get_pending_canonical_jobs(
-        self, limit: int | None = None
-    ) -> list[PendingCanonicalJob]:
+    def get_pending_canonical_jobs(self, limit: int | None = None) -> list[PendingCanonicalJob]:
         try:
             statement = (
                 select(CanonicalJob)
-                .where(CanonicalJob.transform_status == "pending")
+                .where(CanonicalJob.enrich_status == "pending")
                 .order_by(col(CanonicalJob.created_at).asc(), col(CanonicalJob.id).asc())
             )
             if limit is not None:
@@ -356,26 +337,72 @@ class PostgresManager:
                 if row.id is not None
             ]
         except SQLAlchemyError as e:
-            print(
-                f" ERROR on PostgresManager: Could not get pending canonical jobs. "
-                f"Cause: {e}"
-            )
+            print(f" ERROR on PostgresManager: Could not get pending canonical jobs. Cause: {e}")
             self.session.rollback()
             return []
 
+    def save_job_enrichment(self, canonical_id: int, metadata: JobOfferMetadata) -> None:
+        try:
+            row = self.session.get(CanonicalJob, canonical_id)
+            if row is None:
+                raise RuntimeError(f"canonical_job {canonical_id} not found")
+            row.standard_role = metadata.standard_role.value
+            row.is_remote = metadata.is_remote
+            row.language_required = metadata.language_required
+            row.enrich_status = "processed"
+            row.enriched_at = datetime.now(timezone.utc)
+            self.session.add(row)
+
+            self.session.execute(
+                delete(CanonicalJobSkill).where(
+                    CanonicalJobSkill.canonical_job_id == canonical_id,
+                )
+            )
+            for skill_name in normalized_skills(metadata.hard_skills):
+                skill_id = self._upsert_skill(skill_name)
+                self.session.add(
+                    CanonicalJobSkill(
+                        canonical_job_id=canonical_id,
+                        skill_id=skill_id,
+                    )
+                )
+            self.session.commit()
+        except Exception as e:
+            self.session.rollback()
+            if isinstance(e, SQLAlchemyError):
+                print(
+                    f" ERROR on PostgresManager: Could not save enrichment for "
+                    f"{canonical_id}. Cause: {e}"
+                )
+            raise
+
+    def _upsert_skill(self, name: str) -> int:
+        statement = (
+            insert(Skill)
+            .values(name=name)
+            .on_conflict_do_nothing(
+                constraint="uq_skills_name",
+            )
+        )
+        self.session.execute(statement)
+        skill = self.session.exec(select(Skill).where(Skill.name == name)).one()
+        if skill.id is None:
+            raise RuntimeError(f"Skill {name!r} has no id after upsert")
+        return skill.id
+
     def mark_canonical_processed(self, canonical_id: int) -> None:
-        self._update_canonical_transform_status(canonical_id, "processed")
+        self._update_canonical_enrich_status(canonical_id, "processed")
 
     def mark_canonical_failed(self, canonical_id: int) -> None:
-        self._update_canonical_transform_status(canonical_id, "failed")
+        self._update_canonical_enrich_status(canonical_id, "failed")
 
-    def _update_canonical_transform_status(self, canonical_id: int, status: str) -> None:
+    def _update_canonical_enrich_status(self, canonical_id: int, status: str) -> None:
         try:
             row = self.session.get(CanonicalJob, canonical_id)
             if row is None:
                 return
-            row.transform_status = status
-            row.transformed_at = datetime.now(timezone.utc)
+            row.enrich_status = status
+            row.enriched_at = datetime.now(timezone.utc)
             self.session.add(row)
             self.session.commit()
         except SQLAlchemyError as e:

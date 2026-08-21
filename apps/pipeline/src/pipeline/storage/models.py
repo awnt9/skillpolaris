@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy import Column, DateTime, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, Column, DateTime, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
@@ -55,15 +55,27 @@ class CanonicalJob(SQLModel, table=True):
     url: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
     posted_at: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
     keyword: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
-    transform_status: str = Field(
+    enrich_status: str = Field(
         default="pending",
-        sa_column=Column(Text, nullable=False, server_default="pending"),
+        sa_column=Column(Text, nullable=False, server_default="pending", index=True),
+    )
+    standard_role: Optional[str] = Field(
+        default=None,
+        sa_column=Column(Text, nullable=True, index=True),
+    )
+    is_remote: Optional[bool] = Field(
+        default=None,
+        sa_column=Column(Boolean, nullable=True),
+    )
+    language_required: Optional[str] = Field(
+        default=None,
+        sa_column=Column(Text, nullable=True),
     )
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime, server_default=func.now(), nullable=True),
     )
-    transformed_at: Optional[datetime] = Field(
+    enriched_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime, nullable=True),
     )
@@ -87,3 +99,18 @@ class SearchKeywordRow(SQLModel, table=True):
         default=None,
         sa_column=Column(DateTime, server_default=func.now(), nullable=True),
     )
+
+
+class Skill(SQLModel, table=True):
+    __tablename__ = "skills"
+    __table_args__ = (UniqueConstraint("name", name="uq_skills_name"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(sa_column=Column(Text, nullable=False))
+
+
+class CanonicalJobSkill(SQLModel, table=True):
+    __tablename__ = "canonical_job_skills"
+
+    canonical_job_id: int = Field(foreign_key="canonical_jobs.id", primary_key=True)
+    skill_id: int = Field(foreign_key="skills.id", primary_key=True)

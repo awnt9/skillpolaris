@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 ExtractorKind = Literal["detail", "feed", "ats"]
 FilterStatus = Literal["pending", "accepted", "rejected", "uncertain", "failed"]
-TransformStatus = Literal["pending", "processed", "failed"]
+EnrichStatus = Literal["pending", "processed", "failed"]
 
 
 class DetailTask(TypedDict):
@@ -56,7 +56,7 @@ class CanonicalJobOffer(BaseModel):
 
 
 class PendingCanonicalJob(BaseModel):
-    """Row from canonical_jobs awaiting transform."""
+    """Row from canonical_jobs awaiting enrichment."""
 
     id: int
     raw_job_id: int
