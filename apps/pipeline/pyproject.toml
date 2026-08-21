@@ -1,7 +1,7 @@
 [project]
 name = "pipeline"
 version = "0.1.0"
-description = "SkillPolaris ETL pipeline (extract, transform, embed, load)"
+description = "SkillPolaris ETL pipeline (extract, filter, enrich)"
 requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.18.5",
@@ -11,8 +11,8 @@ dependencies = [
     "prefect>=3.0.0",
     "psycopg2-binary>=2.9.11",
     "pydantic>=2.12.5",
+    "pydantic-ai>=2.8.0",
     "pydantic-settings>=2.13.1",
-    "qdrant-client>=1.17.1",
     "requests>=2.32.5",
     "rich>=14.3.3",
     "sqlmodel>=0.0.39",
@@ -24,3 +24,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pipeline"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/pipeline/tasks/enrich/prompt.md" = "pipeline/tasks/enrich/prompt.md"

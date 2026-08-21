@@ -2,7 +2,7 @@ FILE ?= .
 ARGS ?=
 
 .PHONY: lint fix format up down compose compose-pipeline compose-app \
-	pipeline-shell extract filter transform sync-keywords \
+	pipeline-shell extract filter enrich sync-keywords \
 	prefect-deploy migrate migrate-docker
 
 lint:
@@ -45,9 +45,9 @@ filter:
 	docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \
 		uv run --package pipeline python -m pipeline.flows.filter
 
-transform:
+enrich:
 	docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \
-		uv run --package pipeline python -m pipeline.flows.transform
+		uv run --package pipeline python -m pipeline.flows.enrich
 
 sync-keywords:
 	docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \

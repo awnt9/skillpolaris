@@ -43,18 +43,6 @@ services:
     networks:
       - skillpolaris
 
-  qdrant:
-    image: qdrant/qdrant:latest
-    container_name: qdrant_db
-    restart: always
-    ports:
-      - "6333:6333"
-      - "6334:6334"
-    volumes:
-      - ../qdrant_data:/qdrant/storage
-    networks:
-      - skillpolaris
-
   ollama:
     image: ollama/ollama:latest
     container_name: ollama_container
