@@ -1,6 +1,8 @@
 # Prefect server + pipeline worker (full Docker / prod-like).
 # Requires the data plane network (created by docker-compose.data.yml).
 #
+# Local build only — pipeline-worker builds from apps/pipeline/Dockerfile.
+#
 # Preferred: make up
 # Or:
 #   make compose ARGS="up -d --wait"
@@ -23,7 +25,7 @@ volumes:
 services:
   prefect-server:
     image: prefecthq/prefect:3-latest
-    container_name: skillpolaris_prefect
+    container_name: prefect
     command: ["prefect", "server", "start", "--host", "0.0.0.0"]
     env_file:
       - ../.env
@@ -54,7 +56,7 @@ services:
     build:
       context: ..
       dockerfile: apps/pipeline/Dockerfile
-    container_name: skillpolaris_pipeline_worker
+    container_name: pipeline_worker
     env_file:
       - ../.env
     networks:
