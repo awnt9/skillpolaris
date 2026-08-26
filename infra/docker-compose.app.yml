@@ -1,7 +1,11 @@
 # Application compute — frontend + backend, separate from the pipeline.
 # Requires the data plane network: start data compose first.
 #
-# Usage (when images exist):
+# Local build only — api/web build from apps/api/Dockerfile and
+# apps/web/Dockerfile. Neither exists in this repo yet, so this plane
+# doesn't run until they're added.
+#
+# Usage (once Dockerfiles exist):
 #   make compose ARGS="up -d"
 #   make compose-app ARGS="--profile app up -d"
 
@@ -21,7 +25,7 @@ services:
     env_file:
       - ../.env
     ports:
-      - "8000:8000"
+      - "${API_PORT}:8000"
     networks:
       - skillpolaris
     restart: unless-stopped
@@ -34,7 +38,7 @@ services:
     env_file:
       - ../.env
     ports:
-      - "3000:3000"
+      - "${WEB_PORT}:3000"
     networks:
       - skillpolaris
     restart: unless-stopped
