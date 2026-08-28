@@ -3,8 +3,8 @@ from typing import Literal
 from pydantic import BaseModel
 
 KeywordOrigin = Literal[
-    "manual",
     "esco",
+    "esco_programming",
     "stackoverflow",
     "onet",
     "rome",

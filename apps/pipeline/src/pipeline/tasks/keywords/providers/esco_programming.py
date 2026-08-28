@@ -53,7 +53,7 @@ class EscoProgrammingProvider(KeywordProvider):
 
     @property
     def origin(self) -> str:
-        return "esco"
+        return "esco_programming"
 
     def collect(self) -> list[SearchKeywordUpsert]:
         try:
@@ -83,6 +83,6 @@ class EscoProgrammingProvider(KeywordProvider):
                 keywords.add(normalized)
 
         return [
-            SearchKeywordUpsert(keyword=keyword, origin="esco")
+            SearchKeywordUpsert(keyword=keyword, origin="esco_programming")
             for keyword in sorted(keywords)
         ]
