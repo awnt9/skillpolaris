@@ -17,7 +17,7 @@ from pipeline.schemas.jobs import RawJobRecord
 from pipeline.tasks.extract.sources.base import DetailExtractor, handle_api_errors
 
 JOBSUCHE_SEARCH_URL = (
-    "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v4/app/jobs"
+    "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v6/jobs"
 )
 JOBSUCHE_DETAIL_URL = (
     "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service/pc/v4/jobdetails/{ref}"
@@ -50,8 +50,8 @@ class BundesagenturExtractor(DetailExtractor):
         res = self.session.get(JOBSUCHE_SEARCH_URL, params=params, timeout=10)
         res.raise_for_status()
         data = res.json()
-        offers = data.get("stellenangebote") or []
-        return [item["refnr"] for item in offers if item.get("refnr")]
+        offers = data.get("ergebnisliste") or []
+        return [item["referenznummer"] for item in offers if item.get("referenznummer")]
 
     @handle_api_errors
     def fetch_detail(self, job_id: str) -> dict[str, Any] | None:
