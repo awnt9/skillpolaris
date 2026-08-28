@@ -13,7 +13,6 @@ from pipeline.tasks.keywords.providers.esco_programming import EscoProgrammingPr
 from pipeline.tasks.keywords.providers.himalayas import HimalayasCategoryProvider
 from pipeline.tasks.keywords.providers.jobicy import JobicyIndustryProvider
 from pipeline.tasks.keywords.providers.landing_jobs import LandingJobsKeywordProvider
-from pipeline.tasks.keywords.providers.manual import ManualKeywordProvider
 from pipeline.tasks.keywords.providers.remoteok import RemoteOkTagProvider
 from pipeline.tasks.keywords.providers.remotive import RemotiveKeywordProvider
 from pipeline.tasks.keywords.providers.stackoverflow import StackOverflowTagProvider
@@ -24,12 +23,11 @@ from prefect import get_run_logger, task
 def build_keyword_providers(
     esco_groups: list[int] | None = None,
     *,
-    include_manual: bool = True,
     so_pages: int = 2,
     so_min_count: int = 50_000,
     so_api_key: str | None = None,
 ) -> list[KeywordProvider]:
-    providers: list[KeywordProvider] = [
+    return [
         EscoKeywordProvider(group_codes=esco_groups),
         EscoProgrammingProvider(),
         StackOverflowTagProvider(
@@ -45,10 +43,6 @@ def build_keyword_providers(
         LandingJobsKeywordProvider(),
         TheMuseKeywordProvider(),
     ]
-    if include_manual:
-        # Last so role seeds do not get origin-overwritten by SO on conflict.
-        providers.append(ManualKeywordProvider())
-    return providers
 
 
 def run_keyword_sync(
