@@ -4,12 +4,18 @@ from __future__ import annotations
 
 from pipeline.config import Settings, get_configuration
 from pipeline.storage.postgres import PostgresManager
+from pipeline.tasks.keywords.providers.arbeitnow import ArbeitnowKeywordProvider
 from pipeline.tasks.keywords.providers.base import KeywordProvider
 from pipeline.tasks.keywords.providers.esco import EscoKeywordProvider
 from pipeline.tasks.keywords.providers.esco_programming import EscoProgrammingProvider
+from pipeline.tasks.keywords.providers.himalayas import HimalayasCategoryProvider
+from pipeline.tasks.keywords.providers.jobicy import JobicyIndustryProvider
+from pipeline.tasks.keywords.providers.landing_jobs import LandingJobsKeywordProvider
 from pipeline.tasks.keywords.providers.manual import ManualKeywordProvider
 from pipeline.tasks.keywords.providers.remoteok import RemoteOkTagProvider
+from pipeline.tasks.keywords.providers.remotive import RemotiveKeywordProvider
 from pipeline.tasks.keywords.providers.stackoverflow import StackOverflowTagProvider
+from pipeline.tasks.keywords.providers.the_muse import TheMuseKeywordProvider
 from prefect import get_run_logger, task
 
 
@@ -30,6 +36,12 @@ def build_keyword_providers(
             api_key=so_api_key,
         ),
         RemoteOkTagProvider(),
+        RemotiveKeywordProvider(),
+        ArbeitnowKeywordProvider(),
+        HimalayasCategoryProvider(),
+        JobicyIndustryProvider(),
+        LandingJobsKeywordProvider(),
+        TheMuseKeywordProvider(),
     ]
     if include_manual:
         # Last so role seeds do not get origin-overwritten by SO on conflict.
