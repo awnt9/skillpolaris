@@ -37,31 +37,25 @@ def run_detail_extract(
     budget = configuration.max_total_details
 
     for source_name, extractor in registry.detail.items():
-        if result.saved >= budget:
-            logger.info(
-                "Extract detail: budget reached (saved=%s), skipping remaining sources",
-                result.saved,
-            )
-            break
-
         policy = registry.policy_for(source_name)
         keywords = store.get_keywords_for_extract(
             source_name=source_name,
             limit=configuration.extract_keyword_limit,
             cooldown_hours=configuration.extract_keyword_cooldown_hours,
         )
+        phase_saved = 0
         logger.info(
-            "Extract detail: source=%s keywords=%s budget_left=%s",
+            "Extract detail: source=%s keywords=%s budget=%s",
             source_name,
             len(keywords),
-            budget - result.saved,
+            budget,
         )
 
         for keyword_row in keywords:
-            if result.saved >= budget:
+            if phase_saved >= budget:
                 logger.info(
                     "Extract detail: budget reached (saved=%s), stopping keywords",
-                    result.saved,
+                    phase_saved,
                 )
                 break
 
@@ -75,7 +69,7 @@ def run_detail_extract(
                 keyword_row.keyword,
             )
 
-            while page < configuration.max_depth and result.saved < budget:
+            while page < configuration.max_depth and phase_saved < budget:
                 rate_limiter.wait(source_name, policy.min_interval_seconds)
                 raw_ids = extractor.search_ids(keyword_row.keyword, page)
 
@@ -103,7 +97,7 @@ def run_detail_extract(
                 page_saved_before = result.saved
                 page_failed_before = result.failed
                 for job_id in new_ids:
-                    if result.saved >= budget:
+                    if phase_saved >= budget:
                         break
 
                     rate_limiter.wait(source_name, policy.min_interval_seconds)
@@ -115,6 +109,7 @@ def run_detail_extract(
                             store=store,
                         ):
                             result.saved += 1
+                            phase_saved += 1
                         else:
                             result.failed += 1
                     except Exception:  # noqa: BLE001 — per-offer boundary
@@ -128,10 +123,10 @@ def run_detail_extract(
                     page,
                     result.saved - page_saved_before,
                     result.failed - page_failed_before,
-                    result.saved,
+                    phase_saved,
                 )
 
-                if result.saved >= budget:
+                if phase_saved >= budget:
                     break
 
                 page += 1
