@@ -24,6 +24,12 @@ class Settings(BaseSettings):
         le=100,
     )
 
+    # Free self-serve key at https://developer.adzuna.com/ — empty until registered.
+    adzuna_app_id: str | None = Field(alias="ADZUNA_APP_ID")
+    adzuna_app_key: str | None = Field(alias="ADZUNA_APP_KEY")
+    # Comma-separated 2-letter country codes (e.g. "gb,de,fr").
+    adzuna_countries: str = Field(alias="ADZUNA_COUNTRIES")
+
     max_total_details: int = Field(alias="MAX_TOTAL_DETAILS")
     max_depth: int = Field(alias="MAX_DEPTH")
     extract_keyword_limit: int = Field(alias="EXTRACT_KEYWORD_LIMIT")
@@ -52,6 +58,12 @@ class Settings(BaseSettings):
     lever_board_tokens: str = Field(alias="LEVER_BOARD_TOKENS")
     # Comma-separated Ashby job board names (e.g. "notion,linear").
     ashby_board_tokens: str = Field(alias="ASHBY_BOARD_TOKENS")
+    # Comma-separated Recruitee company subdomains (e.g. "sirclecollection").
+    recruitee_board_tokens: str = Field(alias="RECRUITEE_BOARD_TOKENS")
+    # Comma-separated Workable account subdomains (e.g. "huggingface").
+    workable_board_tokens: str = Field(alias="WORKABLE_BOARD_TOKENS")
+    # Comma-separated SmartRecruiters company identifiers (e.g. "SmartRecruiters").
+    smartrecruiters_board_tokens: str = Field(alias="SMARTRECRUITERS_BOARD_TOKENS")
 
     # Chat (filter gate + enrich metadata). OpenAI-compatible endpoint.
     llm_base_url: str = Field(alias="LLM_BASE_URL")

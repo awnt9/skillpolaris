@@ -19,6 +19,9 @@ def _default_ats_company_slugs(configuration: Settings) -> dict[str, list[str]]:
         "greenhouse": parse_board_tokens(configuration.greenhouse_board_tokens),
         "lever": parse_board_tokens(configuration.lever_board_tokens),
         "ashby": parse_board_tokens(configuration.ashby_board_tokens),
+        "recruitee": parse_board_tokens(configuration.recruitee_board_tokens),
+        "workable": parse_board_tokens(configuration.workable_board_tokens),
+        "smartrecruiters": parse_board_tokens(configuration.smartrecruiters_board_tokens),
     }
 
 

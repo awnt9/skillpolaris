@@ -1,6 +1,8 @@
 import logging
+import re
 from abc import ABC, abstractmethod
 from functools import wraps
+from html import unescape
 from json import JSONDecodeError
 from typing import Any
 
@@ -10,6 +12,16 @@ from prefect.exceptions import MissingContextError
 from requests import RequestException
 
 _fallback_logger = logging.getLogger(__name__)
+
+_TAG_RE = re.compile(r"<[^>]+>")
+_WS_RE = re.compile(r"\s+")
+
+
+def html_to_text(value: str) -> str:
+    """Strip HTML tags/entities down to plain text (ATS boards often double-encode)."""
+    text = unescape(unescape(value))
+    text = _TAG_RE.sub(" ", text)
+    return _WS_RE.sub(" ", text).strip()
 
 
 def get_extractor_logger():
