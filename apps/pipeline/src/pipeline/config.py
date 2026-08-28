@@ -47,6 +47,10 @@ class Settings(BaseSettings):
 
     # Comma-separated Greenhouse board tokens (e.g. "figma,stripe").
     greenhouse_board_tokens: str = Field(alias="GREENHOUSE_BOARD_TOKENS")
+    # Comma-separated Lever board tokens (e.g. "netflix,ramp").
+    lever_board_tokens: str = Field(alias="LEVER_BOARD_TOKENS")
+    # Comma-separated Ashby job board names (e.g. "notion,linear").
+    ashby_board_tokens: str = Field(alias="ASHBY_BOARD_TOKENS")
 
     # Chat (filter gate + enrich metadata). OpenAI-compatible endpoint.
     llm_base_url: str = Field(alias="LLM_BASE_URL")

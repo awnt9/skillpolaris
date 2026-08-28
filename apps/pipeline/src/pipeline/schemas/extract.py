@@ -9,6 +9,12 @@ KeywordOrigin = Literal[
     "onet",
     "rome",
     "remoteok",
+    "remotive",
+    "arbeitnow",
+    "himalayas",
+    "jobicy",
+    "landing_jobs",
+    "the_muse",
     "other",
 ]
 

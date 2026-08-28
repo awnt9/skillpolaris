@@ -4,10 +4,19 @@ from dataclasses import dataclass, field
 
 from pipeline.config import Settings
 from pipeline.schemas.extract import SourcePolicy
+from pipeline.tasks.extract.sources.arbeitnow import ArbeitnowExtractor
+from pipeline.tasks.extract.sources.ashby import AshbyExtractor
 from pipeline.tasks.extract.sources.base import AtsExtractor, DetailExtractor, FeedExtractor
+from pipeline.tasks.extract.sources.bundesagentur import BundesagenturExtractor
 from pipeline.tasks.extract.sources.france_travail import FranceTravailExtractor
 from pipeline.tasks.extract.sources.greenhouse import GreenhouseExtractor
+from pipeline.tasks.extract.sources.himalayas import HimalayasExtractor
+from pipeline.tasks.extract.sources.jobicy import JobicyExtractor
+from pipeline.tasks.extract.sources.landing_jobs import LandingJobsExtractor
+from pipeline.tasks.extract.sources.lever import LeverExtractor
 from pipeline.tasks.extract.sources.remoteok import RemoteOkExtractor
+from pipeline.tasks.extract.sources.remotive import RemotiveExtractor
+from pipeline.tasks.extract.sources.the_muse import TheMuseExtractor
 
 
 @dataclass
@@ -32,15 +41,45 @@ class ExtractorRegistry:
 
 def build_extractor_registry(configuration: Settings) -> ExtractorRegistry:
     france_travail = FranceTravailExtractor(configuration=configuration)
+    bundesagentur = BundesagenturExtractor(configuration=configuration)
+
     remoteok = RemoteOkExtractor(configuration=configuration)
+    remotive = RemotiveExtractor(configuration=configuration)
+    arbeitnow = ArbeitnowExtractor(configuration=configuration)
+    himalayas = HimalayasExtractor(configuration=configuration)
+    jobicy = JobicyExtractor(configuration=configuration)
+    landing_jobs = LandingJobsExtractor(configuration=configuration)
+    the_muse = TheMuseExtractor(configuration=configuration)
+
     greenhouse = GreenhouseExtractor(configuration=configuration)
+    lever = LeverExtractor(configuration=configuration)
+    ashby = AshbyExtractor(configuration=configuration)
 
     return ExtractorRegistry(
-        detail={france_travail.source_name: france_travail},
-        feed={remoteok.source_name: remoteok},
-        ats={greenhouse.source_name: greenhouse},
+        detail={
+            france_travail.source_name: france_travail,
+            bundesagentur.source_name: bundesagentur,
+        },
+        feed={
+            remoteok.source_name: remoteok,
+            remotive.source_name: remotive,
+            arbeitnow.source_name: arbeitnow,
+            himalayas.source_name: himalayas,
+            jobicy.source_name: jobicy,
+            landing_jobs.source_name: landing_jobs,
+            the_muse.source_name: the_muse,
+        },
+        ats={
+            greenhouse.source_name: greenhouse,
+            lever.source_name: lever,
+            ashby.source_name: ashby,
+        },
         policies={
             france_travail.source_name: SourcePolicy(
+                min_interval_seconds=1.0,
+                max_retries=2,
+            ),
+            bundesagentur.source_name: SourcePolicy(
                 min_interval_seconds=1.0,
                 max_retries=2,
             ),
@@ -48,7 +87,39 @@ def build_extractor_registry(configuration: Settings) -> ExtractorRegistry:
                 min_interval_seconds=2.0,
                 max_retries=2,
             ),
+            remotive.source_name: SourcePolicy(
+                min_interval_seconds=2.0,
+                max_retries=2,
+            ),
+            arbeitnow.source_name: SourcePolicy(
+                min_interval_seconds=2.0,
+                max_retries=2,
+            ),
+            himalayas.source_name: SourcePolicy(
+                min_interval_seconds=2.0,
+                max_retries=2,
+            ),
+            jobicy.source_name: SourcePolicy(
+                min_interval_seconds=2.0,
+                max_retries=2,
+            ),
+            landing_jobs.source_name: SourcePolicy(
+                min_interval_seconds=2.0,
+                max_retries=2,
+            ),
+            the_muse.source_name: SourcePolicy(
+                min_interval_seconds=2.0,
+                max_retries=2,
+            ),
             greenhouse.source_name: SourcePolicy(
+                min_interval_seconds=1.0,
+                max_retries=2,
+            ),
+            lever.source_name: SourcePolicy(
+                min_interval_seconds=1.0,
+                max_retries=2,
+            ),
+            ashby.source_name: SourcePolicy(
                 min_interval_seconds=1.0,
                 max_retries=2,
             ),

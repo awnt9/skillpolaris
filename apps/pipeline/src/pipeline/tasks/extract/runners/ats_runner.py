@@ -17,30 +17,31 @@ def run_ats_extract(
     configuration: Settings,
     rate_limiter: SourceRateLimiter,
     result: ExtractRunResult,
-    company_slugs: list[str],
+    company_slugs: dict[str, list[str]],
 ) -> None:
     logger = get_run_logger()
     budget = configuration.max_total_details
-
-    if not company_slugs:
-        logger.info("Extract ats: no company_slugs, skipping")
-        return
 
     if not registry.ats:
         logger.info("Extract ats: no ats extractors registered, skipping")
         return
 
     for source_name, extractor in registry.ats.items():
+        source_slugs = company_slugs.get(source_name) or []
+        if not source_slugs:
+            logger.info("Extract ats: source=%s no company_slugs, skipping", source_name)
+            continue
+
         policy = registry.policy_for(source_name)
         phase_saved = 0
         logger.info(
             "Extract ats: source=%s boards=%s budget=%s",
             source_name,
-            len(company_slugs),
+            len(source_slugs),
             budget,
         )
 
-        for slug in company_slugs:
+        for slug in source_slugs:
             if phase_saved >= budget:
                 logger.info(
                     "Extract ats: budget reached (saved=%s), stopping boards",

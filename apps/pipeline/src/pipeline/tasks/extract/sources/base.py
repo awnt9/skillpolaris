@@ -41,6 +41,11 @@ def handle_api_errors(func):
     return wrapper
 
 
+def parse_board_tokens(raw: str) -> list[str]:
+    """Split comma-separated ATS board tokens from env / config."""
+    return [token.strip() for token in raw.split(",") if token.strip()]
+
+
 class BaseExtractor(ABC):
     """Shared session/config for all source connectors."""
 
