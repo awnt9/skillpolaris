@@ -35,6 +35,7 @@ def run_extract(
 
     with PostgresManager(configuration) as store:
         logger.info("Extract phase=detail starting")
+        saved_before, failed_before, skipped_before = result.saved, result.failed, result.skipped
         run_detail_extract(
             store=store,
             registry=registry,
@@ -42,7 +43,15 @@ def run_extract(
             rate_limiter=rate_limiter,
             result=result,
         )
+        logger.info(
+            "Extract phase=detail finished saved+=%s failed+=%s skipped+=%s",
+            result.saved - saved_before,
+            result.failed - failed_before,
+            result.skipped - skipped_before,
+        )
+
         logger.info("Extract phase=feed starting")
+        saved_before, failed_before, skipped_before = result.saved, result.failed, result.skipped
         run_feed_extract(
             store=store,
             registry=registry,
@@ -50,7 +59,15 @@ def run_extract(
             rate_limiter=rate_limiter,
             result=result,
         )
+        logger.info(
+            "Extract phase=feed finished saved+=%s failed+=%s skipped+=%s",
+            result.saved - saved_before,
+            result.failed - failed_before,
+            result.skipped - skipped_before,
+        )
+
         logger.info("Extract phase=ats starting")
+        saved_before, failed_before, skipped_before = result.saved, result.failed, result.skipped
         run_ats_extract(
             store=store,
             registry=registry,
@@ -59,7 +76,20 @@ def run_extract(
             result=result,
             company_slugs=board_slugs,
         )
+        logger.info(
+            "Extract phase=ats finished saved+=%s failed+=%s skipped+=%s",
+            result.saved - saved_before,
+            result.failed - failed_before,
+            result.skipped - skipped_before,
+        )
 
+    logger.info(
+        "Extract run finished. keywords_used=%s saved=%s failed=%s skipped=%s",
+        result.keywords_used,
+        result.saved,
+        result.failed,
+        result.skipped,
+    )
     return result
 
 
