@@ -5,6 +5,7 @@ from __future__ import annotations
 from pipeline.config import Settings, get_configuration
 from pipeline.storage.postgres import PostgresManager
 from pipeline.tasks.enrich.llm import MetadataExtractor
+from pipeline.tasks.enrich.stats import compute_role_stats
 from prefect import get_run_logger, task
 
 
@@ -75,3 +76,30 @@ def enrich_task() -> dict[str, int]:
         result["failed"],
     )
     return result
+
+
+def run_recompute_role_stats(configuration: Settings) -> dict[str, int]:
+    logger = get_run_logger()
+
+    with PostgresManager(configuration) as store:
+        jobs = store.get_enrich_snapshot()
+        skill_weights, role_aggregates = compute_role_stats(jobs)
+        store.replace_role_stats(skill_weights, role_aggregates)
+
+    logger.info(
+        "Role stats recomputed. jobs=%s roles=%s role_skill_pairs=%s",
+        len(jobs),
+        len(role_aggregates),
+        len(skill_weights),
+    )
+    return {
+        "jobs": len(jobs),
+        "roles": len(role_aggregates),
+        "role_skill_pairs": len(skill_weights),
+    }
+
+
+@task(name="recompute-role-stats", retries=1)
+def recompute_role_stats_task() -> dict[str, int]:
+    configuration = get_configuration()
+    return run_recompute_role_stats(configuration)

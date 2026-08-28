@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy import Boolean, Column, DateTime, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
@@ -114,3 +114,46 @@ class CanonicalJobSkill(SQLModel, table=True):
 
     canonical_job_id: int = Field(foreign_key="canonical_jobs.id", primary_key=True)
     skill_id: int = Field(foreign_key="skills.id", primary_key=True)
+
+
+class RoleSkillStat(SQLModel, table=True):
+    """Precomputed per-(role, skill) matching weight, refreshed after each enrich run.
+
+    score_weight is the per-skill decomposition of the mean per-offer coverage ratio
+    (mean_j |candidate ∩ skills(j)| / |skills(j)|): summing score_weight over a
+    candidate's matched skills reproduces that mean exactly, without iterating jobs
+    at request time. market_pct is the plain "% of offers for this role that ask for
+    this skill", kept only for display.
+    """
+
+    __tablename__ = "role_skill_stats"
+
+    standard_role: str = Field(sa_column=Column(Text, primary_key=True))
+    skill_id: int = Field(foreign_key="skills.id", primary_key=True)
+    score_weight: float = Field(sa_column=Column(Float, nullable=False))
+    market_pct: float = Field(sa_column=Column(Float, nullable=False))
+    computed_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime, server_default=func.now(), nullable=True),
+    )
+
+
+class RoleStat(SQLModel, table=True):
+    """Precomputed per-role aggregates over canonical_jobs, refreshed after each enrich run."""
+
+    __tablename__ = "role_stats"
+
+    standard_role: str = Field(sa_column=Column(Text, primary_key=True))
+    job_count: int = Field(sa_column=Column(Integer, nullable=False))
+    is_remote_pct: Optional[float] = Field(
+        default=None,
+        sa_column=Column(Float, nullable=True),
+    )
+    language_distribution: dict[str, float] = Field(
+        default_factory=dict,
+        sa_column=Column(JSONB, nullable=False, server_default="{}"),
+    )
+    computed_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime, server_default=func.now(), nullable=True),
+    )

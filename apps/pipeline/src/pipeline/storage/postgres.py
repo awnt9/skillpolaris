@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
 from pipeline.schemas.enrich import JobOfferMetadata, normalized_skills
@@ -12,7 +13,16 @@ from pipeline.schemas.jobs import (
     PendingRawJob,
     RawJobRecord,
 )
-from pipeline.storage.models import CanonicalJob, CanonicalJobSkill, RawJob, SearchKeywordRow, Skill
+from pipeline.schemas.stats import EnrichedJobSnapshot, RoleAggregate, RoleSkillWeight
+from pipeline.storage.models import (
+    CanonicalJob,
+    CanonicalJobSkill,
+    RawJob,
+    RoleSkillStat,
+    RoleStat,
+    SearchKeywordRow,
+    Skill,
+)
 from sqlalchemy import delete, func, or_, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
@@ -410,4 +420,77 @@ class PostgresManager:
                 f" ERROR on PostgresManager: Could not mark canonical {canonical_id} "
                 f"as {status}. Cause: {e}"
             )
+            self.session.rollback()
+
+    def get_enrich_snapshot(self) -> list[EnrichedJobSnapshot]:
+        """Read the fields role/skill stats are computed from. No aggregation here —
+        that logic lives in tasks.enrich.stats.compute_role_stats."""
+        try:
+            job_rows = self.session.exec(
+                select(
+                    CanonicalJob.id,
+                    CanonicalJob.standard_role,
+                    CanonicalJob.is_remote,
+                    CanonicalJob.language_required,
+                ).where(col(CanonicalJob.standard_role).is_not(None))
+            ).all()
+
+            skills_by_job: dict[int, set[int]] = defaultdict(set)
+            for job_id, skill_id in self.session.exec(
+                select(CanonicalJobSkill.canonical_job_id, CanonicalJobSkill.skill_id)
+            ).all():
+                skills_by_job[job_id].add(skill_id)
+
+            self.session.commit()
+            return [
+                EnrichedJobSnapshot(
+                    standard_role=standard_role,
+                    is_remote=is_remote,
+                    language_required=language_required,
+                    skill_ids=frozenset(skills_by_job.get(job_id, set())),
+                )
+                for job_id, standard_role, is_remote, language_required in job_rows
+                if job_id is not None
+            ]
+        except SQLAlchemyError as e:
+            print(f" ERROR on PostgresManager: Could not read enrich snapshot. Cause: {e}")
+            self.session.rollback()
+            return []
+
+    def replace_role_stats(
+        self,
+        skill_weights: list[RoleSkillWeight],
+        role_aggregates: list[RoleAggregate],
+    ) -> None:
+        """Full rebuild of role_skill_stats and role_stats from already-computed values.
+
+        Cheap to run in full each time: both tables are bounded by
+        (nº standard_role) × (nº distinct skill/language), not by nº offers.
+        """
+        try:
+            self.session.execute(delete(RoleSkillStat))
+            for weight in skill_weights:
+                self.session.add(
+                    RoleSkillStat(
+                        standard_role=weight.standard_role,
+                        skill_id=weight.skill_id,
+                        score_weight=weight.score_weight,
+                        market_pct=weight.market_pct,
+                    )
+                )
+
+            self.session.execute(delete(RoleStat))
+            for aggregate in role_aggregates:
+                self.session.add(
+                    RoleStat(
+                        standard_role=aggregate.standard_role,
+                        job_count=aggregate.job_count,
+                        is_remote_pct=aggregate.is_remote_pct,
+                        language_distribution=aggregate.language_distribution,
+                    )
+                )
+
+            self.session.commit()
+        except SQLAlchemyError as e:
+            print(f" ERROR on PostgresManager: Could not replace role stats. Cause: {e}")
             self.session.rollback()
