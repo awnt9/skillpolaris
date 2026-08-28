@@ -7,9 +7,9 @@ from prefect import flow, get_run_logger
 
 
 @flow(name="sync-keywords", log_prints=True)
-def sync_keywords_flow(esco_groups: list[int] | None = None) -> dict[str, int]:
+def sync_keywords_flow() -> dict[str, int]:
     logger = get_run_logger()
-    result = sync_keywords_task(esco_groups=esco_groups)
+    result = sync_keywords_task()
     logger.info("Keyword sync flow finished: %s", result)
     return result
 

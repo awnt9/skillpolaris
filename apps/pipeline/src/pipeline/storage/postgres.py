@@ -167,24 +167,12 @@ class PostgresManager:
         source_name: str,
         limit: int,
         cooldown_hours: int = 0,
-        scoped_only: bool = False,
     ) -> list[SearchKeyword]:
         try:
             statement = select(SearchKeywordRow).where(
                 SearchKeywordRow.active.is_(True),
+                SearchKeywordRow.source_scope == source_name,
             )
-            if scoped_only:
-                statement = statement.where(
-                    SearchKeywordRow.source_scope == source_name,
-                )
-            else:
-                statement = statement.where(
-                    or_(
-                        SearchKeywordRow.source_scope.is_(None),
-                        SearchKeywordRow.source_scope == "",
-                        SearchKeywordRow.source_scope == source_name,
-                    ),
-                )
             if cooldown_hours > 0:
                 cutoff = datetime.now(timezone.utc) - timedelta(hours=cooldown_hours)
                 statement = statement.where(

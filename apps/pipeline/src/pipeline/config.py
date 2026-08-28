@@ -46,10 +46,6 @@ class Settings(BaseSettings):
     )
     filter_llm_model: str = Field(alias="FILTER_LLM_MODEL")
 
-    so_tag_pages: int = Field(alias="SO_TAG_PAGES")
-    so_min_count: int = Field(alias="SO_MIN_COUNT")
-    so_api_key: str | None = Field(alias="SO_API_KEY")
-
     # Comma-separated Greenhouse board tokens (e.g. "figma,stripe").
     greenhouse_board_tokens: str = Field(alias="GREENHOUSE_BOARD_TOKENS")
     # Comma-separated Lever board tokens (e.g. "netflix,ramp").

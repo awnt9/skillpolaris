@@ -117,7 +117,6 @@ def run_feed_extract(
             source_name=source_name,
             limit=configuration.extract_keyword_limit,
             cooldown_hours=configuration.extract_keyword_cooldown_hours,
-            scoped_only=True,
         )
         logger.info(
             "Extract feed: source=%s tags=%s budget=%s",
