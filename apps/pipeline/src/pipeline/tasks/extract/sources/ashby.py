@@ -5,8 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 from pipeline.schemas.jobs import RawJobRecord
-from pipeline.tasks.extract.sources.base import AtsExtractor, handle_api_errors
-from rich import print
+from pipeline.tasks.extract.sources.base import (
+    AtsExtractor,
+    get_extractor_logger,
+    handle_api_errors,
+)
 
 ASHBY_JOB_BOARD_URL = "https://api.ashbyhq.com/posting-api/job-board/{board_name}"
 USER_AGENT = "SkillPolaris/0.1 (academic research; ats ingest)"
@@ -36,7 +39,7 @@ class AshbyExtractor(AtsExtractor):
         payload = response.json()
         jobs = payload.get("jobs") or []
         if not isinstance(jobs, list):
-            print("[bold red][AshbyExtractor] unexpected jobs payload[/]")
+            get_extractor_logger().error("[AshbyExtractor] unexpected jobs payload")
             return []
         return [job for job in jobs if isinstance(job, dict) and job.get("id") is not None]
 

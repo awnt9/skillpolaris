@@ -5,8 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from pipeline.schemas.jobs import FeedBatch, RawJobRecord
-from pipeline.tasks.extract.sources.base import FeedExtractor
-from rich import print
+from pipeline.tasks.extract.sources.base import FeedExtractor, get_extractor_logger
 
 HIMALAYAS_BROWSE_URL = "https://himalayas.app/jobs/api"
 HIMALAYAS_SEARCH_URL = "https://himalayas.app/jobs/api/search"
@@ -50,12 +49,12 @@ class HimalayasExtractor(FeedExtractor):
             response.raise_for_status()
             payload = response.json()
         except Exception as exc:  # noqa: BLE001 — feed boundary
-            print(f"[bold red][HimalayasExtractor] fetch failed: {exc}[/]")
+            get_extractor_logger().error("[HimalayasExtractor] fetch failed: %s", exc)
             return FeedBatch(records=[], next_cursor=None)
 
         jobs = payload.get("jobs") if isinstance(payload, dict) else None
         if not isinstance(jobs, list):
-            print("[bold red][HimalayasExtractor] unexpected payload type[/]")
+            get_extractor_logger().error("[HimalayasExtractor] unexpected payload type")
             return FeedBatch(records=[], next_cursor=None)
 
         records = [

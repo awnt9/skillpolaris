@@ -13,8 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 from pipeline.schemas.jobs import FeedBatch, RawJobRecord
-from pipeline.tasks.extract.sources.base import FeedExtractor
-from rich import print
+from pipeline.tasks.extract.sources.base import FeedExtractor, get_extractor_logger
 
 REMOTIVE_API_URL = "https://remotive.com/api/remote-jobs"
 USER_AGENT = "SkillPolaris/0.1 (academic research; feed ingest)"
@@ -49,12 +48,12 @@ class RemotiveExtractor(FeedExtractor):
             response.raise_for_status()
             payload = response.json()
         except Exception as exc:  # noqa: BLE001 — feed boundary
-            print(f"[bold red][RemotiveExtractor] fetch failed: {exc}[/]")
+            get_extractor_logger().error("[RemotiveExtractor] fetch failed: %s", exc)
             return FeedBatch(records=[], next_cursor=None)
 
         jobs = payload.get("jobs") if isinstance(payload, dict) else None
         if not isinstance(jobs, list):
-            print("[bold red][RemotiveExtractor] unexpected payload type[/]")
+            get_extractor_logger().error("[RemotiveExtractor] unexpected payload type")
             return FeedBatch(records=[], next_cursor=None)
 
         records = [

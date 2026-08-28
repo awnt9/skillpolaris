@@ -5,8 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from pipeline.schemas.jobs import FeedBatch, RawJobRecord
-from pipeline.tasks.extract.sources.base import FeedExtractor
-from rich import print
+from pipeline.tasks.extract.sources.base import FeedExtractor, get_extractor_logger
 
 REMOTEOK_API_URL = "https://remoteok.com/api"
 USER_AGENT = "SkillPolaris/0.1 (academic research; feed ingest)"
@@ -49,11 +48,11 @@ class RemoteOkExtractor(FeedExtractor):
             response.raise_for_status()
             payload = response.json()
         except Exception as exc:  # noqa: BLE001 — feed boundary
-            print(f"[bold red][RemoteOkExtractor] fetch failed: {exc}[/]")
+            get_extractor_logger().error("[RemoteOkExtractor] fetch failed: %s", exc)
             return FeedBatch(records=[], next_cursor=None)
 
         if not isinstance(payload, list):
-            print("[bold red][RemoteOkExtractor] unexpected payload type[/]")
+            get_extractor_logger().error("[RemoteOkExtractor] unexpected payload type")
             return FeedBatch(records=[], next_cursor=None)
 
         records = [

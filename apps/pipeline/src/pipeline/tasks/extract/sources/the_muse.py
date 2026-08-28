@@ -12,8 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from pipeline.schemas.jobs import FeedBatch, RawJobRecord
-from pipeline.tasks.extract.sources.base import FeedExtractor
-from rich import print
+from pipeline.tasks.extract.sources.base import FeedExtractor, get_extractor_logger
 
 THE_MUSE_API_URL = "https://www.themuse.com/api/public/jobs"
 USER_AGENT = "SkillPolaris/0.1 (academic research; feed ingest)"
@@ -53,12 +52,12 @@ class TheMuseExtractor(FeedExtractor):
             response.raise_for_status()
             payload = response.json()
         except Exception as exc:  # noqa: BLE001 — feed boundary
-            print(f"[bold red][TheMuseExtractor] fetch failed: {exc}[/]")
+            get_extractor_logger().error("[TheMuseExtractor] fetch failed: %s", exc)
             return FeedBatch(records=[], next_cursor=None)
 
         results = payload.get("results") if isinstance(payload, dict) else None
         if not isinstance(results, list):
-            print("[bold red][TheMuseExtractor] unexpected payload type[/]")
+            get_extractor_logger().error("[TheMuseExtractor] unexpected payload type")
             return FeedBatch(records=[], next_cursor=None)
 
         records = [

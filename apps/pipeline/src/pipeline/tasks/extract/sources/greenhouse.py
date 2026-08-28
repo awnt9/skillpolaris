@@ -7,8 +7,11 @@ from html import unescape
 from typing import Any
 
 from pipeline.schemas.jobs import RawJobRecord
-from pipeline.tasks.extract.sources.base import AtsExtractor, handle_api_errors
-from rich import print
+from pipeline.tasks.extract.sources.base import (
+    AtsExtractor,
+    get_extractor_logger,
+    handle_api_errors,
+)
 
 GREENHOUSE_JOBS_URL = (
     "https://boards-api.greenhouse.io/v1/boards/{board_token}/jobs"
@@ -54,7 +57,7 @@ class GreenhouseExtractor(AtsExtractor):
         payload = response.json()
         jobs = payload.get("jobs") or []
         if not isinstance(jobs, list):
-            print("[bold red][GreenhouseExtractor] unexpected jobs payload[/]")
+            get_extractor_logger().error("[GreenhouseExtractor] unexpected jobs payload")
             return []
         return [job for job in jobs if isinstance(job, dict) and job.get("id") is not None]
 

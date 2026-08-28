@@ -5,8 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 from pipeline.schemas.jobs import RawJobRecord
-from pipeline.tasks.extract.sources.base import AtsExtractor, handle_api_errors
-from rich import print
+from pipeline.tasks.extract.sources.base import (
+    AtsExtractor,
+    get_extractor_logger,
+    handle_api_errors,
+)
 
 LEVER_POSTINGS_URL = "https://api.lever.co/v0/postings/{company}"
 USER_AGENT = "SkillPolaris/0.1 (academic research; ats ingest)"
@@ -39,7 +42,7 @@ class LeverExtractor(AtsExtractor):
         response.raise_for_status()
         payload = response.json()
         if not isinstance(payload, list):
-            print("[bold red][LeverExtractor] unexpected postings payload[/]")
+            get_extractor_logger().error("[LeverExtractor] unexpected postings payload")
             return []
         return [item for item in payload if isinstance(item, dict) and item.get("id") is not None]
 

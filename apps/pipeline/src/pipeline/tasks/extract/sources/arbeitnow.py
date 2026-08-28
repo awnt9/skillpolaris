@@ -11,8 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from pipeline.schemas.jobs import FeedBatch, RawJobRecord
-from pipeline.tasks.extract.sources.base import FeedExtractor
-from rich import print
+from pipeline.tasks.extract.sources.base import FeedExtractor, get_extractor_logger
 
 ARBEITNOW_API_URL = "https://www.arbeitnow.com/api/job-board-api"
 USER_AGENT = "SkillPolaris/0.1 (academic research; feed ingest)"
@@ -48,12 +47,12 @@ class ArbeitnowExtractor(FeedExtractor):
             response.raise_for_status()
             payload = response.json()
         except Exception as exc:  # noqa: BLE001 — feed boundary
-            print(f"[bold red][ArbeitnowExtractor] fetch failed: {exc}[/]")
+            get_extractor_logger().error("[ArbeitnowExtractor] fetch failed: %s", exc)
             return FeedBatch(records=[], next_cursor=None)
 
         data = payload.get("data") if isinstance(payload, dict) else None
         if not isinstance(data, list):
-            print("[bold red][ArbeitnowExtractor] unexpected payload type[/]")
+            get_extractor_logger().error("[ArbeitnowExtractor] unexpected payload type")
             return FeedBatch(records=[], next_cursor=None)
 
         records = [

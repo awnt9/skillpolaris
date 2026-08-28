@@ -3,8 +3,11 @@ from typing import Any
 import requests
 from pipeline.schemas.extract_requests import FranceTravailRequestTemplate
 from pipeline.schemas.jobs import RawJobRecord
-from pipeline.tasks.extract.sources.base import DetailExtractor, handle_api_errors
-from rich import print
+from pipeline.tasks.extract.sources.base import (
+    DetailExtractor,
+    get_extractor_logger,
+    handle_api_errors,
+)
 
 
 class FranceTravailExtractor(DetailExtractor):
@@ -49,7 +52,7 @@ class FranceTravailExtractor(DetailExtractor):
             )
 
         except Exception as e:
-            print(e)
+            get_extractor_logger().error("[FranceTravailExtractor] token fetch failed: %s", e)
             return None
 
     @handle_api_errors
