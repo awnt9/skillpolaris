@@ -57,10 +57,10 @@ def build_extractor_registry(configuration: Settings) -> ExtractorRegistry:
 
     return ExtractorRegistry(
         detail={
-            france_travail.source_name: france_travail,
             bundesagentur.source_name: bundesagentur,
         },
         feed={
+            france_travail.source_name: france_travail,
             remoteok.source_name: remoteok,
             remotive.source_name: remotive,
             arbeitnow.source_name: arbeitnow,

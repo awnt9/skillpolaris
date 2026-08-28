@@ -1,10 +1,11 @@
 """Bundesagentur fuer Arbeit "Jobsuche" public API extractor.
 
 Community-documented API (no official Bundesagentur support/SLA) covering
-German job postings from private employers, mirroring the France Travail
-two-step pattern: search returns a ``refnr`` per hit, and the detail
-endpoint takes that ``refnr`` base64-encoded. Auth is a static, publicly
-documented client key (not a per-user account) — see
+German job postings. Two-step: search (unscoped, just paginated and scoped
+to recent postings via ``veroeffentlichtseit``) returns a ``refnr`` per hit,
+and the detail endpoint takes that ``refnr`` base64-encoded — search results
+don't carry a description, so the detail call stays mandatory. Auth is a
+static, publicly documented client key (not a per-user account) — see
 https://github.com/bundesAPI/jobsuche-api
 """
 
@@ -41,11 +42,11 @@ class BundesagenturExtractor(DetailExtractor):
         return "bundesagentur"
 
     @handle_api_errors
-    def search_ids(self, keyword: str, page: int) -> list[str]:
+    def search_ids(self, page: int) -> list[str]:
         params = {
-            "was": keyword,
             "page": page + 1,
             "size": PAGE_SIZE,
+            "veroeffentlichtseit": self.configuration.bundesagentur_lookback_days,
         }
         res = self.session.get(JOBSUCHE_SEARCH_URL, params=params, timeout=10)
         res.raise_for_status()

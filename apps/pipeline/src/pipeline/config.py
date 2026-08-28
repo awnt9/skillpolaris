@@ -18,6 +18,11 @@ class Settings(BaseSettings):
         ge=1,
         le=150,
     )
+    bundesagentur_lookback_days: int = Field(
+        alias="BUNDESAGENTUR_LOOKBACK_DAYS",
+        ge=0,
+        le=100,
+    )
 
     max_total_details: int = Field(alias="MAX_TOTAL_DETAILS")
     max_depth: int = Field(alias="MAX_DEPTH")

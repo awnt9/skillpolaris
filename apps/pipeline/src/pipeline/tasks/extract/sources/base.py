@@ -97,8 +97,8 @@ class DetailExtractor(BaseExtractor):
         return "detail"
 
     @abstractmethod
-    def search_ids(self, keyword: str, page: int) -> list[str]:
-        """Return job IDs for a keyword/page."""
+    def search_ids(self, page: int) -> list[str]:
+        """Return job IDs for a page (unscoped — no keyword filter)."""
 
     @abstractmethod
     def fetch_detail(self, job_id: str) -> dict[str, Any] | None:
