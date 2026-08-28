@@ -2,10 +2,9 @@
 # Requires the data plane network: start data compose first.
 #
 # Local build only — api/web build from apps/api/Dockerfile and
-# apps/web/Dockerfile. Neither exists in this repo yet, so this plane
-# doesn't run until they're added.
+# apps/web/Dockerfile.
 #
-# Usage (once Dockerfiles exist):
+# Usage:
 #   make compose ARGS="up -d"
 #   make compose-app ARGS="--profile app up -d"
 
