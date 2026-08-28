@@ -1,0 +1,6 @@
+<svg width="400" height="400" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">SkillPolaris</title>
+  <desc id="desc">Estrella de navegacion dentro de un circulo, sin borde blanco ni mini estrellas</desc>
+  <circle cx="100" cy="100" r="86" fill="none" stroke="#2D3FE7" stroke-width="3"/>
+  <path d="M 100.00,26.00 L 104.97,87.99 L 130.41,69.59 L 112.01,95.03 L 174.00,100.00 L 112.01,104.97 L 130.41,130.41 L 104.97,112.01 L 100.00,174.00 L 95.03,112.01 L 69.59,130.41 L 87.99,104.97 L 26.00,100.00 L 87.99,95.03 L 69.59,69.59 L 95.03,87.99 Z" fill="#2D3FE7"/>
+</svg>
