@@ -3,7 +3,14 @@ name = "api"
 version = "0.1.0"
 description = "SkillPolaris HTTP API"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "fastapi>=0.121.0",
+    "psycopg2-binary>=2.9.11",
+    "pydantic-settings>=2.13.1",
+    "python-multipart>=0.0.20",
+    "sqlalchemy>=2.0.0",
+    "uvicorn[standard]>=0.38.0",
+]
 
 [build-system]
 requires = ["hatchling"]
