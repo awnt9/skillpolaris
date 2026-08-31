@@ -101,6 +101,17 @@ class SearchKeywordRow(SQLModel, table=True):
     )
 
 
+class FeedCursor(SQLModel, table=True):
+    __tablename__ = "feed_cursors"
+
+    source_name: str = Field(primary_key=True)
+    cursor: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    updated_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=True),
+    )
+
+
 class Skill(SQLModel, table=True):
     __tablename__ = "skills"
     __table_args__ = (UniqueConstraint("name", name="uq_skills_name"),)

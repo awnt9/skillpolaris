@@ -25,8 +25,13 @@ def _run_batch_loop(
     budget: int,
     max_batches: int,
     logger,
-) -> int:
-    cursor: str | None = None
+    start_cursor: str | None = None,
+) -> tuple[int, str | None]:
+    cursor: str | None = start_cursor
+    # Where the next run should resume from — updated after each processed
+    # batch so a mid-sweep stop (budget/max_batches) is picked back up next
+    # time instead of re-walking already-seen pages from the start.
+    resume_cursor: str | None = start_cursor
 
     for batch_index in range(max_batches):
         if phase_saved >= budget:
@@ -92,11 +97,13 @@ def _run_batch_loop(
             result.saved - batch_saved_before,
         )
 
+        resume_cursor = batch.next_cursor
+
         if not batch.next_cursor or phase_saved >= budget:
             break
         cursor = batch.next_cursor
 
-    return phase_saved
+    return phase_saved, resume_cursor
 
 
 def run_feed_extract(
@@ -126,14 +133,17 @@ def run_feed_extract(
         )
 
         if not keywords:
+            start_cursor = store.get_feed_cursor(source_name)
             logger.info(
-                "Extract feed: source=%s no scoped tags, running unscoped sweep",
+                "Extract feed: source=%s no scoped tags, running unscoped sweep "
+                "(resume_cursor=%s)",
                 source_name,
+                start_cursor or "none",
             )
             saved_before = result.saved
             failed_before = result.failed
             skipped_before = result.skipped
-            _run_batch_loop(
+            _, resume_cursor = _run_batch_loop(
                 source_name=source_name,
                 extractor=extractor,
                 keyword=None,
@@ -145,14 +155,17 @@ def run_feed_extract(
                 budget=budget,
                 max_batches=max_batches_per_tag,
                 logger=logger,
+                start_cursor=start_cursor,
             )
+            store.save_feed_cursor(source_name, resume_cursor)
             logger.info(
                 "Extract feed: source=%s unscoped sweep closed saved+=%s failed+=%s "
-                "skipped+=%s",
+                "skipped+=%s next_resume_cursor=%s",
                 source_name,
                 result.saved - saved_before,
                 result.failed - failed_before,
                 result.skipped - skipped_before,
+                resume_cursor or "none",
             )
             continue
 
@@ -175,7 +188,7 @@ def run_feed_extract(
                 keyword_row.keyword,
             )
 
-            phase_saved = _run_batch_loop(
+            phase_saved, _ = _run_batch_loop(
                 source_name=source_name,
                 extractor=extractor,
                 keyword=keyword_row.keyword,

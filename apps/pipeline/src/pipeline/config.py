@@ -6,7 +6,6 @@ class Settings(BaseSettings):
     """Pipeline settings loaded from environment / .env. All fields are required."""
 
     db_host: str = Field(alias="DB_HOST")
-    db_port: int = Field(alias="DB_PORT")
     postgres_db: str = Field(alias="POSTGRES_DB")
     postgres_user: str = Field(alias="POSTGRES_USER")
     postgres_password: str = Field(alias="POSTGRES_PASSWORD")

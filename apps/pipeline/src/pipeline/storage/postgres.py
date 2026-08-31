@@ -12,7 +12,14 @@ from pipeline.schemas.jobs import (
     PendingRawJob,
     RawJobRecord,
 )
-from pipeline.storage.models import CanonicalJob, CanonicalJobSkill, RawJob, SearchKeywordRow, Skill
+from pipeline.storage.models import (
+    CanonicalJob,
+    CanonicalJobSkill,
+    FeedCursor,
+    RawJob,
+    SearchKeywordRow,
+    Skill,
+)
 from sqlalchemy import delete, func, or_, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
@@ -20,10 +27,13 @@ from sqlmodel import Session, col, create_engine, select
 
 
 def build_database_url(configuration) -> str:
+    # Always 5432: this is the container-to-container Postgres port on the
+    # Docker network, not the host-published port (DB_PORT), which only
+    # matters for connecting from outside Docker (e.g. pgweb, host tools).
     return (
         f"postgresql+psycopg2://{configuration.postgres_user}:"
         f"{configuration.postgres_password}@{configuration.db_host}:"
-        f"{configuration.db_port}/{configuration.postgres_db}"
+        f"5432/{configuration.postgres_db}"
     )
 
 
@@ -159,6 +169,38 @@ class PostgresManager:
             self.session.commit()
         except SQLAlchemyError as e:
             print(f" ERROR on PostgresManager: Could not refresh keyword counts. Cause: {e}")
+            self.session.rollback()
+
+    def get_feed_cursor(self, source_name: str) -> str | None:
+        """Resume point for an unscoped feed sweep, or None to start over."""
+        try:
+            row = self.session.get(FeedCursor, source_name)
+            return row.cursor if row else None
+        except SQLAlchemyError as e:
+            print(
+                f" ERROR on PostgresManager: Could not read feed cursor for {source_name}. "
+                f"Cause: {e}"
+            )
+            self.session.rollback()
+            return None
+
+    def save_feed_cursor(self, source_name: str, cursor: str | None) -> None:
+        try:
+            statement = (
+                insert(FeedCursor)
+                .values(source_name=source_name, cursor=cursor)
+                .on_conflict_do_update(
+                    index_elements=["source_name"],
+                    set_={"cursor": cursor, "updated_at": func.now()},
+                )
+            )
+            self.session.execute(statement)
+            self.session.commit()
+        except SQLAlchemyError as e:
+            print(
+                f" ERROR on PostgresManager: Could not save feed cursor for {source_name}. "
+                f"Cause: {e}"
+            )
             self.session.rollback()
 
     def get_keywords_for_extract(
