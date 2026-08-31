@@ -8,7 +8,7 @@ from prefect import flow, get_run_logger
 
 @flow(name="extract-jobs", log_prints=True)
 def extract_flow(
-    ats_company_slugs: list[str] | None = None,
+    ats_company_slugs: dict[str, list[str]] | None = None,
 ) -> dict[str, int]:
     """Pull new offers into raw_jobs (filter_status=pending)."""
     logger = get_run_logger()

@@ -5,7 +5,13 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
-from pipeline.schemas.enrich import JobOfferMetadata, normalized_skills
+from pipeline.schemas.enrich import (
+    JobOfferMetadata,
+    StandardRoleOption,
+    merge_synonyms,
+    normalize_role_name,
+    normalized_skills,
+)
 from pipeline.schemas.extract import SearchKeyword, SearchKeywordUpsert
 from pipeline.schemas.jobs import (
     CanonicalJobOffer,
@@ -17,11 +23,13 @@ from pipeline.schemas.stats import EnrichedJobSnapshot, RoleAggregate, RoleSkill
 from pipeline.storage.models import (
     CanonicalJob,
     CanonicalJobSkill,
+    FeedCursor,
     RawJob,
     RoleSkillStat,
     RoleStat,
     SearchKeywordRow,
     Skill,
+    StandardRole,
 )
 from sqlalchemy import delete, func, or_, text
 from sqlalchemy.dialects.postgresql import insert
@@ -30,10 +38,13 @@ from sqlmodel import Session, col, create_engine, select
 
 
 def build_database_url(configuration) -> str:
+    # Always 5432: this is the container-to-container Postgres port on the
+    # Docker network, not the host-published port (DB_PORT), which only
+    # matters for connecting from outside Docker (e.g. pgweb, host tools).
     return (
         f"postgresql+psycopg2://{configuration.postgres_user}:"
         f"{configuration.postgres_password}@{configuration.db_host}:"
-        f"{configuration.db_port}/{configuration.postgres_db}"
+        f"5432/{configuration.postgres_db}"
     )
 
 
@@ -169,6 +180,38 @@ class PostgresManager:
             self.session.commit()
         except SQLAlchemyError as e:
             print(f" ERROR on PostgresManager: Could not refresh keyword counts. Cause: {e}")
+            self.session.rollback()
+
+    def get_feed_cursor(self, source_name: str) -> str | None:
+        """Resume point for an unscoped feed sweep, or None to start over."""
+        try:
+            row = self.session.get(FeedCursor, source_name)
+            return row.cursor if row else None
+        except SQLAlchemyError as e:
+            print(
+                f" ERROR on PostgresManager: Could not read feed cursor for {source_name}. "
+                f"Cause: {e}"
+            )
+            self.session.rollback()
+            return None
+
+    def save_feed_cursor(self, source_name: str, cursor: str | None) -> None:
+        try:
+            statement = (
+                insert(FeedCursor)
+                .values(source_name=source_name, cursor=cursor)
+                .on_conflict_do_update(
+                    index_elements=["source_name"],
+                    set_={"cursor": cursor, "updated_at": func.now()},
+                )
+            )
+            self.session.execute(statement)
+            self.session.commit()
+        except SQLAlchemyError as e:
+            print(
+                f" ERROR on PostgresManager: Could not save feed cursor for {source_name}. "
+                f"Cause: {e}"
+            )
             self.session.rollback()
 
     def get_keywords_for_extract(
@@ -351,12 +394,35 @@ class PostgresManager:
             self.session.rollback()
             return []
 
+    def get_active_standard_roles(self) -> list[StandardRoleOption]:
+        statement = (
+            select(StandardRole)
+            .where(col(StandardRole.merged_into_id).is_(None))
+            .order_by(col(StandardRole.name).asc())
+        )
+        return [
+            StandardRoleOption(
+                name=role.name,
+                description=role.description,
+                synonyms=list(role.synonyms or []),
+            )
+            for role in self.session.exec(statement).all()
+        ]
+
     def save_job_enrichment(self, canonical_id: int, metadata: JobOfferMetadata) -> None:
         try:
             row = self.session.get(CanonicalJob, canonical_id)
             if row is None:
                 raise RuntimeError(f"canonical_job {canonical_id} not found")
-            row.standard_role = metadata.standard_role.value
+            role_name = normalize_role_name(metadata.standard_role)
+            role_id = self._upsert_standard_role(
+                role_name,
+                description=metadata.standard_role_description,
+                new_synonyms=metadata.standard_role_synonyms,
+            )
+            role = self.session.get(StandardRole, role_id)
+            row.standard_role_id = role_id
+            row.standard_role = role.name if role is not None else role_name
             row.is_remote = metadata.is_remote
             row.language_required = metadata.language_required
             row.enrich_status = "processed"
@@ -385,6 +451,41 @@ class PostgresManager:
                     f"{canonical_id}. Cause: {e}"
                 )
             raise
+
+    def _upsert_standard_role(
+        self,
+        name: str,
+        *,
+        description: str | None,
+        new_synonyms: list[str],
+    ) -> int:
+        clean_synonyms = merge_synonyms([], new_synonyms, name)
+        statement = (
+            insert(StandardRole)
+            .values(name=name, description=description, synonyms=clean_synonyms)
+            .on_conflict_do_nothing()
+        )
+        self.session.execute(statement)
+        role = self.session.exec(
+            select(StandardRole).where(func.lower(StandardRole.name) == name.lower())
+        ).one()
+        if role.id is None:
+            raise RuntimeError(f"Standard role {name!r} has no id after upsert")
+
+        # Role already existed: never clobber a curated description; only merge in
+        # any new synonym the agent attached to this reuse decision.
+        dirty = False
+        if role.description is None and description:
+            role.description = description
+            dirty = True
+        merged = merge_synonyms(list(role.synonyms or []), new_synonyms, role.name)
+        if merged != (role.synonyms or []):
+            role.synonyms = merged
+            dirty = True
+        if dirty:
+            self.session.add(role)
+
+        return role.id
 
     def _upsert_skill(self, name: str) -> int:
         statement = (

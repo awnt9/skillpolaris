@@ -17,37 +17,34 @@ def run_ats_extract(
     configuration: Settings,
     rate_limiter: SourceRateLimiter,
     result: ExtractRunResult,
-    company_slugs: list[str],
+    company_slugs: dict[str, list[str]],
 ) -> None:
     logger = get_run_logger()
     budget = configuration.max_total_details
-
-    if not company_slugs:
-        logger.info("Extract ats: no company_slugs, skipping")
-        return
 
     if not registry.ats:
         logger.info("Extract ats: no ats extractors registered, skipping")
         return
 
     for source_name, extractor in registry.ats.items():
+        source_slugs = company_slugs.get(source_name) or []
+        if not source_slugs:
+            logger.info("Extract ats: source=%s no company_slugs, skipping", source_name)
+            continue
+
         policy = registry.policy_for(source_name)
-        phase_saved = 0
+        # Split evenly per board so one board (e.g. the first, biggest one)
+        # can't burn the whole budget and starve the rest, run after run.
+        board_budget = max(1, budget // len(source_slugs))
         logger.info(
-            "Extract ats: source=%s boards=%s budget=%s",
+            "Extract ats: source=%s boards=%s budget=%s board_budget=%s",
             source_name,
-            len(company_slugs),
+            len(source_slugs),
             budget,
+            board_budget,
         )
 
-        for slug in company_slugs:
-            if phase_saved >= budget:
-                logger.info(
-                    "Extract ats: budget reached (saved=%s), stopping boards",
-                    phase_saved,
-                )
-                break
-
+        for slug in source_slugs:
             rate_limiter.wait(source_name, policy.min_interval_seconds)
             saved_before = result.saved
             failed_before = result.failed
@@ -72,14 +69,15 @@ def run_ats_extract(
                 len(postings),
             )
 
+            board_saved = 0
             for payload in postings:
-                if phase_saved >= budget:
+                if board_saved >= board_budget:
                     break
                 try:
                     raw_job = extractor.to_raw_job(payload, company_slug=slug)
                     if store.save_raw_job(raw_job=raw_job):
                         result.saved += 1
-                        phase_saved += 1
+                        board_saved += 1
                     else:
                         result.skipped += 1
                 except Exception:  # noqa: BLE001 — per-offer boundary

@@ -8,7 +8,7 @@ from prefect import get_run_logger, task
 @task(name="extract", retries=1)
 def extract_task(
     *,
-    ats_company_slugs: list[str] | None = None,
+    ats_company_slugs: dict[str, list[str]] | None = None,
 ) -> dict[str, int]:
     logger = get_run_logger()
     configuration = get_configuration()

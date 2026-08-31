@@ -3,12 +3,15 @@ from typing import Literal
 from pydantic import BaseModel
 
 KeywordOrigin = Literal[
-    "manual",
-    "esco",
-    "stackoverflow",
     "onet",
     "rome",
     "remoteok",
+    "remotive",
+    "arbeitnow",
+    "himalayas",
+    "jobicy",
+    "landing_jobs",
+    "the_muse",
     "other",
 ]
 

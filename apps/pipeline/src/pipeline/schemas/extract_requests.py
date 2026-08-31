@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class FranceTravailRequestTemplate(BaseModel):
-    motsCles: str
+    motsCles: Optional[str] = None
     accesTravailleurHandicape: bool = False
     appellation: Optional[str] = None
     codeNAF: Optional[str] = None

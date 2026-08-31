@@ -12,16 +12,18 @@ from prefect import get_run_logger, task
 def run_enrich(configuration: Settings) -> dict[str, int]:
     logger = get_run_logger()
 
-    extractor = MetadataExtractor(
-        base_url=configuration.llm_base_url,
-        api_key=configuration.llm_api_key,
-        model=configuration.llm_model,
-    )
-
     processed = 0
     failed = 0
 
     with PostgresManager(configuration) as store:
+        roles = store.get_active_standard_roles()
+        extractor = MetadataExtractor(
+            base_url=configuration.llm_base_url,
+            api_key=configuration.llm_api_key,
+            model=configuration.llm_model,
+            roles=roles,
+        )
+
         pending = store.get_pending_canonical_jobs(limit=configuration.enrich_batch_size)
         logger.info(
             "Enrich batch: pending=%s limit=%s model=%s",
@@ -42,7 +44,7 @@ def run_enrich(configuration: Settings) -> dict[str, int]:
                     "Enrich ok id=%s source=%s role=%s skills=%s",
                     canonical_job.id,
                     canonical_job.source,
-                    metadata.standard_role.value,
+                    metadata.standard_role,
                     len(metadata.hard_skills),
                 )
             except Exception:  # noqa: BLE001 — per-offer boundary

@@ -1,44 +1,76 @@
+import logging
+import re
 from abc import ABC, abstractmethod
 from functools import wraps
+from html import unescape
 from json import JSONDecodeError
 from typing import Any
 
 import requests
 from pipeline.schemas.jobs import ExtractorKind, FeedBatch, RawJobRecord
+from prefect.exceptions import MissingContextError
 from requests import RequestException
-from rich import print
+
+_fallback_logger = logging.getLogger(__name__)
+
+_TAG_RE = re.compile(r"<[^>]+>")
+_WS_RE = re.compile(r"\s+")
+
+
+def html_to_text(value: str) -> str:
+    """Strip HTML tags/entities down to plain text (ATS boards often double-encode)."""
+    text = unescape(unescape(value))
+    text = _TAG_RE.sub(" ", text)
+    return _WS_RE.sub(" ", text).strip()
+
+
+def get_extractor_logger():
+    """Prefer the Prefect run logger so extractor errors show up in the UI;
+    fall back to a plain logger when called outside a flow/task run."""
+    from prefect import get_run_logger
+
+    try:
+        return get_run_logger()
+    except MissingContextError:
+        return _fallback_logger
 
 
 def handle_api_errors(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         class_name = self.__class__.__name__
+        logger = get_extractor_logger()
 
         try:
             return func(self, *args, **kwargs)
         except requests.exceptions.HTTPError as e:
             status = e.response.status_code
             if status == 403:
-                print(
-                    f"[bold red][{class_name}] Forbidden (403): "
-                    f"Possible block of IP or User-Agent.[/]"
+                logger.warning(
+                    "[%s] Forbidden (403): possible block of IP or User-Agent.",
+                    class_name,
                 )
             elif status == 429:
-                print(f"[bold red][{class_name}] Too Many Requests (429)[/]")
+                logger.warning("[%s] Too Many Requests (429)", class_name)
             else:
-                print(f"[bold red][{class_name}] HTTP Error {status}: {e}[/]")
+                logger.error("[%s] HTTP Error %s: %s", class_name, status, e)
             return []
         except JSONDecodeError:
-            print(f"[bold red][{class_name}] Error: response is not a valid JSON.[/]")
+            logger.error("[%s] Error: response is not a valid JSON.", class_name)
             return []
         except RequestException as e:
-            print(f"[bold red][{class_name}] Error: {e}[/]")
+            logger.error("[%s] Error: %s", class_name, e)
             return []
         except (KeyError, TypeError) as e:
-            print(f"[bold red][{class_name}] Error on response structure: {e}[/]")
+            logger.error("[%s] Error on response structure: %s", class_name, e)
             return []
 
     return wrapper
+
+
+def parse_board_tokens(raw: str) -> list[str]:
+    """Split comma-separated ATS board tokens from env / config."""
+    return [token.strip() for token in raw.split(",") if token.strip()]
 
 
 class BaseExtractor(ABC):
@@ -77,8 +109,8 @@ class DetailExtractor(BaseExtractor):
         return "detail"
 
     @abstractmethod
-    def search_ids(self, keyword: str, page: int) -> list[str]:
-        """Return job IDs for a keyword/page."""
+    def search_ids(self, page: int) -> list[str]:
+        """Return job IDs for a page (unscoped — no keyword filter)."""
 
     @abstractmethod
     def fetch_detail(self, job_id: str) -> dict[str, Any] | None:

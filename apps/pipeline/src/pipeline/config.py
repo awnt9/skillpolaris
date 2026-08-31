@@ -6,7 +6,6 @@ class Settings(BaseSettings):
     """Pipeline settings loaded from environment / .env. All fields are required."""
 
     db_host: str = Field(alias="DB_HOST")
-    db_port: int = Field(alias="DB_PORT")
     postgres_db: str = Field(alias="POSTGRES_DB")
     postgres_user: str = Field(alias="POSTGRES_USER")
     postgres_password: str = Field(alias="POSTGRES_PASSWORD")
@@ -18,6 +17,17 @@ class Settings(BaseSettings):
         ge=1,
         le=150,
     )
+    bundesagentur_lookback_days: int = Field(
+        alias="BUNDESAGENTUR_LOOKBACK_DAYS",
+        ge=0,
+        le=100,
+    )
+
+    # Free self-serve key at https://developer.adzuna.com/ — empty until registered.
+    adzuna_app_id: str | None = Field(alias="ADZUNA_APP_ID")
+    adzuna_app_key: str | None = Field(alias="ADZUNA_APP_KEY")
+    # Comma-separated 2-letter country codes (e.g. "gb,de,fr").
+    adzuna_countries: str = Field(alias="ADZUNA_COUNTRIES")
 
     max_total_details: int = Field(alias="MAX_TOTAL_DETAILS")
     max_depth: int = Field(alias="MAX_DEPTH")
@@ -41,12 +51,18 @@ class Settings(BaseSettings):
     )
     filter_llm_model: str = Field(alias="FILTER_LLM_MODEL")
 
-    so_tag_pages: int = Field(alias="SO_TAG_PAGES")
-    so_min_count: int = Field(alias="SO_MIN_COUNT")
-    so_api_key: str | None = Field(alias="SO_API_KEY")
-
     # Comma-separated Greenhouse board tokens (e.g. "figma,stripe").
     greenhouse_board_tokens: str = Field(alias="GREENHOUSE_BOARD_TOKENS")
+    # Comma-separated Lever board tokens (e.g. "netflix,ramp").
+    lever_board_tokens: str = Field(alias="LEVER_BOARD_TOKENS")
+    # Comma-separated Ashby job board names (e.g. "notion,linear").
+    ashby_board_tokens: str = Field(alias="ASHBY_BOARD_TOKENS")
+    # Comma-separated Recruitee company subdomains (e.g. "sirclecollection").
+    recruitee_board_tokens: str = Field(alias="RECRUITEE_BOARD_TOKENS")
+    # Comma-separated Workable account subdomains (e.g. "huggingface").
+    workable_board_tokens: str = Field(alias="WORKABLE_BOARD_TOKENS")
+    # Comma-separated SmartRecruiters company identifiers (e.g. "SmartRecruiters").
+    smartrecruiters_board_tokens: str = Field(alias="SMARTRECRUITERS_BOARD_TOKENS")
 
     # Chat (filter gate + enrich metadata). OpenAI-compatible endpoint.
     llm_base_url: str = Field(alias="LLM_BASE_URL")

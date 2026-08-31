@@ -1,4 +1,4 @@
-"""RemoteOK public feed extractor (no auth)."""
+"""Jobicy public remote-jobs feed extractor (no auth)."""
 
 from __future__ import annotations
 
@@ -7,12 +7,12 @@ from typing import Any
 from pipeline.schemas.jobs import FeedBatch, RawJobRecord
 from pipeline.tasks.extract.sources.base import FeedExtractor, get_extractor_logger
 
-REMOTEOK_API_URL = "https://remoteok.com/api"
+JOBICY_API_URL = "https://jobicy.com/api/v2/remote-jobs"
 USER_AGENT = "SkillPolaris/0.1 (academic research; feed ingest)"
 
 
-class RemoteOkExtractor(FeedExtractor):
-    """Pulls RemoteOK JSON windows, optionally filtered by board tag."""
+class JobicyExtractor(FeedExtractor):
+    """Pulls Jobicy remote jobs, optionally filtered by ``industry`` slug."""
 
     def __init__(self, configuration):
         super().__init__(configuration=configuration)
@@ -25,7 +25,7 @@ class RemoteOkExtractor(FeedExtractor):
 
     @property
     def source_name(self) -> str:
-        return "remoteok"
+        return "jobicy"
 
     def fetch_batch(
         self,
@@ -33,32 +33,27 @@ class RemoteOkExtractor(FeedExtractor):
         *,
         keyword: str | None = None,
     ) -> FeedBatch:
-        # RemoteOK returns a flat recent window; no cursor pagination.
+        # Single-window feed: Jobicy has no page/offset param, only `count`.
         del cursor
-        params: dict[str, str] = {}
+        params: dict[str, str] = {"count": "50"}
         if keyword:
-            params["tag"] = keyword
+            params["industry"] = keyword
 
         try:
-            response = self.session.get(
-                REMOTEOK_API_URL,
-                params=params or None,
-                timeout=30,
-            )
+            response = self.session.get(JOBICY_API_URL, params=params, timeout=30)
             response.raise_for_status()
             payload = response.json()
         except Exception as exc:  # noqa: BLE001 — feed boundary
-            get_extractor_logger().error("[RemoteOkExtractor] fetch failed: %s", exc)
+            get_extractor_logger().error("[JobicyExtractor] fetch failed: %s", exc)
             return FeedBatch(records=[], next_cursor=None)
 
-        if not isinstance(payload, list):
-            get_extractor_logger().error("[RemoteOkExtractor] unexpected payload type")
+        jobs = payload.get("jobs") if isinstance(payload, dict) else None
+        if not isinstance(jobs, list):
+            get_extractor_logger().error("[JobicyExtractor] unexpected payload type")
             return FeedBatch(records=[], next_cursor=None)
 
         records = [
-            item
-            for item in payload
-            if isinstance(item, dict) and item.get("id") is not None
+            item for item in jobs if isinstance(item, dict) and item.get("id") is not None
         ]
         return FeedBatch(records=records, next_cursor=None)
 
@@ -70,15 +65,14 @@ class RemoteOkExtractor(FeedExtractor):
         company_slug: str | None = None,
     ) -> RawJobRecord:
         del company_slug
-        description = payload.get("description") or ""
         return RawJobRecord(
             source=self.source_name,
             external_id=str(payload["id"]),
             extractor_kind=self.extractor_kind,
             keyword=keyword,
-            title_raw=payload.get("position") or "",
-            description_raw=description,
-            url=payload.get("url") or payload.get("apply_url"),
-            posted_at_raw=payload.get("date"),
+            title_raw=payload.get("jobTitle") or "",
+            description_raw=payload.get("jobDescription") or payload.get("jobExcerpt") or "",
+            url=payload.get("url"),
+            posted_at_raw=payload.get("pubDate"),
             raw_payload=payload,
         )

@@ -2,12 +2,21 @@ from typing import Any
 
 import requests
 from pipeline.schemas.extract_requests import FranceTravailRequestTemplate
-from pipeline.schemas.jobs import RawJobRecord
-from pipeline.tasks.extract.sources.base import DetailExtractor, handle_api_errors
-from rich import print
+from pipeline.schemas.jobs import FeedBatch, RawJobRecord
+from pipeline.tasks.extract.sources.base import FeedExtractor, get_extractor_logger
+
+SEARCH_URL = "https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search"
+# API-enforced cap: range's second element maxes out at 1149 per unique query.
+MAX_RANGE_END = 1149
 
 
-class FranceTravailExtractor(DetailExtractor):
+class FranceTravailExtractor(FeedExtractor):
+    """Pulls France Travail offers straight from /offres/search.
+
+    Search results already carry the full offer (description included), so
+    unlike Bundesagentur there is no separate detail call.
+    """
+
     def __init__(self, configuration):
         super().__init__(configuration=configuration)
         self.client_id = self.configuration.france_travail_client_id
@@ -49,18 +58,24 @@ class FranceTravailExtractor(DetailExtractor):
             )
 
         except Exception as e:
-            print(e)
+            get_extractor_logger().error("[FranceTravailExtractor] token fetch failed: %s", e)
             return None
 
-    @handle_api_errors
-    def search_ids(self, keyword: str, page: int) -> list[str]:
-        url = "https://api.francetravail.io/partenaire/offresdemploi/v2/offres/search"
+    def fetch_batch(
+        self,
+        cursor: str | None = None,
+        *,
+        keyword: str | None = None,
+    ) -> FeedBatch:
+        del keyword  # unscoped: pulls the full catalog, no keyword filter
         page_size = self.configuration.france_travail_page_size
-        start = page_size * page
-        range_param = f"{start}-{start + page_size - 1}"
-        params = FranceTravailRequestTemplate(
-            motsCles=keyword, range=range_param
-        ).model_dump(exclude_none=True)
+        start = int(cursor) if cursor is not None else 0
+        end = min(start + page_size - 1, MAX_RANGE_END)
+        range_param = f"{start}-{end}"
+
+        params = FranceTravailRequestTemplate(range=range_param).model_dump(
+            exclude_none=True
+        )
         self.session.headers.update(
             {
                 "Authorization": f"Bearer {self.access_token}",
@@ -68,28 +83,25 @@ class FranceTravailExtractor(DetailExtractor):
             }
         )
 
-        res = self.session.get(url, params=params, timeout=10)
-        res.raise_for_status()
-
-        if res.status_code == 204:
-            return []
-
-        if res.status_code in (200, 206):
+        try:
+            res = self.session.get(SEARCH_URL, params=params, timeout=10)
+            res.raise_for_status()
+            if res.status_code == 204:
+                return FeedBatch(records=[], next_cursor=None)
             data = res.json()
-            return [item["id"] for item in data.get("resultats", [])]
+        except Exception as exc:  # noqa: BLE001 — feed boundary
+            get_extractor_logger().error("[FranceTravailExtractor] fetch failed: %s", exc)
+            return FeedBatch(records=[], next_cursor=None)
 
-        return []
+        records = data.get("resultats", [])
 
-    @handle_api_errors
-    def fetch_detail(self, job_id: str) -> dict[str, Any] | None:
-        url = f"https://api.francetravail.io/partenaire/offresdemploi/v2/offres/{job_id}"
-
-        res = self.session.get(url, timeout=10)
-        res.raise_for_status()
-
-        if res.status_code == 204:
-            return None
-        return res.json()
+        next_start = end + 1
+        next_cursor = (
+            str(next_start)
+            if records and len(records) == (end - start + 1) and next_start <= MAX_RANGE_END
+            else None
+        )
+        return FeedBatch(records=records, next_cursor=next_cursor)
 
     def to_raw_job(
         self,

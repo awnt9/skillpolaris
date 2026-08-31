@@ -63,6 +63,11 @@ class CanonicalJob(SQLModel, table=True):
         default=None,
         sa_column=Column(Text, nullable=True, index=True),
     )
+    standard_role_id: Optional[int] = Field(
+        default=None,
+        foreign_key="standard_roles.id",
+        index=True,
+    )
     is_remote: Optional[bool] = Field(
         default=None,
         sa_column=Column(Boolean, nullable=True),
@@ -95,6 +100,35 @@ class SearchKeywordRow(SQLModel, table=True):
         sa_column=Column(DateTime, nullable=True),
     )
     raw_jobs_count: int = Field(default=0)
+    created_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime, server_default=func.now(), nullable=True),
+    )
+
+
+class FeedCursor(SQLModel, table=True):
+    __tablename__ = "feed_cursors"
+
+    source_name: str = Field(primary_key=True)
+    cursor: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    updated_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=True),
+    )
+
+
+class StandardRole(SQLModel, table=True):
+    __tablename__ = "standard_roles"
+    __table_args__ = (UniqueConstraint("name", name="uq_standard_roles_name"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(sa_column=Column(Text, nullable=False))
+    description: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    synonyms: list[str] = Field(
+        default_factory=list,
+        sa_column=Column(JSONB, nullable=False, server_default="[]"),
+    )
+    merged_into_id: Optional[int] = Field(default=None, foreign_key="standard_roles.id")
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime, server_default=func.now(), nullable=True),

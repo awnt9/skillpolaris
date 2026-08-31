@@ -12,13 +12,14 @@ from pipeline.storage.models import (
     RawJob,
     SearchKeywordRow,
     Skill,
+    StandardRole,
 )
 from pipeline.storage.postgres import build_database_url
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
 # Register models on metadata for autogenerate.
-_ = (RawJob, CanonicalJob, SearchKeywordRow, Skill, CanonicalJobSkill)
+_ = (RawJob, CanonicalJob, SearchKeywordRow, Skill, CanonicalJobSkill, StandardRole)
 
 config = context.config
 
