@@ -2,12 +2,12 @@
 # Usage:
 #   make compose ARGS="up -d"
 
-name: skillpolaris-data
+name: ${COMPOSE_PROJECT_NAME:-skillpolaris}-data
 
 services:
   db:
     image: postgres:15-alpine
-    container_name: postgres_db
+    container_name: ${DB_CONTAINER_NAME:-postgres_db}
     restart: always
     env_file:
       - ../.env
@@ -17,7 +17,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - ${DB_PATH}:/var/lib/postgresql/data
       - /etc/localtime:/etc/localtime:ro
@@ -31,7 +31,7 @@ services:
 
   pgweb:
     image: sosedoff/pgweb:latest
-    container_name: pgweb
+    container_name: ${PGWEB_CONTAINER_NAME:-pgweb}
     restart: always
     ports:
       - "${PGWEB_PORT:-8081}:8081"
@@ -45,5 +45,5 @@ services:
 
 networks:
   skillpolaris:
-    name: skillpolaris
+    name: ${COMPOSE_NETWORK_NAME:-skillpolaris}
     driver: bridge

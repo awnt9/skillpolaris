@@ -12,12 +12,12 @@
 # UI: http://127.0.0.1:${PREFECT_PORT}
 # Debug: make pipeline-shell
 
-name: skillpolaris-pipeline
+name: ${COMPOSE_PROJECT_NAME:-skillpolaris}-pipeline
 
 networks:
   skillpolaris:
     external: true
-    name: skillpolaris
+    name: ${COMPOSE_NETWORK_NAME:-skillpolaris}
 
 volumes:
   prefect_data:
@@ -25,7 +25,7 @@ volumes:
 services:
   prefect-server:
     image: prefecthq/prefect:3-latest
-    container_name: prefect
+    container_name: ${PREFECT_CONTAINER_NAME:-prefect}
     command: ["prefect", "server", "start", "--host", "0.0.0.0"]
     env_file:
       - ../.env
@@ -56,7 +56,7 @@ services:
     build:
       context: ..
       dockerfile: apps/pipeline/Dockerfile
-    container_name: pipeline_worker
+    container_name: ${PIPELINE_WORKER_CONTAINER_NAME:-pipeline_worker}
     env_file:
       - ../.env
     networks:
