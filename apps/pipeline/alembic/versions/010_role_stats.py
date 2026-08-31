@@ -1,7 +1,7 @@
 """Add precomputed role_skill_stats and role_stats tables.
 
-Revision ID: 007_role_stats
-Revises: 006_enrich_metadata
+Revision ID: 010_role_stats
+Revises: 009_feed_cursors
 Create Date: 2026-08-28
 """
 
@@ -13,8 +13,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
 
-revision: str = "007_role_stats"
-down_revision: str | None = "006_enrich_metadata"
+revision: str = "010_role_stats"
+down_revision: str | None = "009_feed_cursors"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
