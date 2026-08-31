@@ -11,6 +11,12 @@ class Settings(BaseSettings):
     postgres_user: str = Field(alias="POSTGRES_USER")
     postgres_password: str = Field(alias="POSTGRES_PASSWORD")
 
+    # Chat LLM for CV skill extraction (OpenAI-compatible). Same provider the
+    # pipeline's enrich step uses.
+    llm_base_url: str = Field(alias="LLM_BASE_URL")
+    llm_api_key: str = Field(alias="LLM_API_KEY")
+    llm_model: str = Field(alias="LLM_MODEL")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

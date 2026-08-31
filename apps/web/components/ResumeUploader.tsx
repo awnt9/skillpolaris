@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 
+import CvMatchResults, { type CVMatchResponse } from "./CvMatchResults";
+
 const MAX_SIZE_BYTES = 10 * 1024 * 1024;
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -11,6 +13,7 @@ export default function ResumeUploader() {
   const [file, setFile] = useState<File | null>(null);
   const [state, setState] = useState<UploadState>("idle");
   const [message, setMessage] = useState<string | null>(null);
+  const [result, setResult] = useState<CVMatchResponse | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -37,6 +40,7 @@ export default function ResumeUploader() {
     if (!file) return;
     setState("uploading");
     setMessage(null);
+    setResult(null);
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -45,8 +49,10 @@ export default function ResumeUploader() {
         const body = (await res.json().catch(() => null)) as { detail?: string } | null;
         throw new Error(body?.detail ?? "Upload failed.");
       }
+      const data = (await res.json()) as CVMatchResponse;
+      setResult(data);
       setState("success");
-      setMessage("Resume received. Guidance is coming soon.");
+      setMessage("Here's how your resume matches roles in our database.");
     } catch (err) {
       setState("error");
       setMessage(err instanceof Error ? err.message : "Upload failed.");
@@ -57,6 +63,7 @@ export default function ResumeUploader() {
     setFile(null);
     setState("idle");
     setMessage(null);
+    setResult(null);
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -126,9 +133,11 @@ export default function ResumeUploader() {
           disabled={!file || state === "uploading"}
           className="clay-button rounded-2xl px-6 py-2 text-sm font-semibold"
         >
-          {state === "uploading" ? "Uploading…" : "Analyze resume"}
+          {state === "uploading" ? "Analyzing…" : "Analyze resume"}
         </button>
       </div>
+
+      {state === "success" && result && <CvMatchResults result={result} />}
     </div>
   );
 }
