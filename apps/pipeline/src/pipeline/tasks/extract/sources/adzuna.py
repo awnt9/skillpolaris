@@ -1,7 +1,10 @@
 """Adzuna public search API extractor (free app_id/app_key, self-serve).
 
 Unscoped, no keyword: pages through each configured country in turn. Cursor
-is ``"{country}|{page}"``; empty/short pages roll over to the next country.
+is ``"{country}|{page}"``. Each country gets a fixed page share per run
+(``MAX_BATCHES_PER_RUN`` split across countries) so a big market can't hog
+every batch and starve the rest; a country also rolls over early if it runs
+out of results first.
 """
 
 from __future__ import annotations
@@ -14,10 +17,20 @@ from pipeline.tasks.extract.sources.base import FeedExtractor, get_extractor_log
 SEARCH_URL = "https://api.adzuna.com/v1/api/jobs/{country}/search/{page}"
 RESULTS_PER_PAGE = 20
 USER_AGENT = "SkillPolaris/0.1 (academic research; feed ingest)"
+# Mirrors feed_runner's max_batches_per_tag default: how many pages a single
+# unscoped sweep gets per run, split evenly across countries so the first
+# country in the list can't burn the whole sweep and starve the rest.
+MAX_BATCHES_PER_RUN = 10
 
 
 def _countries(configuration) -> list[str]:
     return [c.strip() for c in configuration.adzuna_countries.split(",") if c.strip()]
+
+
+def _pages_per_country(countries: list[str]) -> int:
+    if not countries:
+        return 1
+    return max(1, MAX_BATCHES_PER_RUN // len(countries))
 
 
 class AdzunaExtractor(FeedExtractor):
@@ -82,11 +95,13 @@ class AdzunaExtractor(FeedExtractor):
 
         records = data.get("results") or []
 
+        countries = _countries(self.configuration)
+        pages_cap = _pages_per_country(countries)
+
         next_cursor: str | None
-        if len(records) == RESULTS_PER_PAGE:
+        if len(records) == RESULTS_PER_PAGE and page < pages_cap:
             next_cursor = f"{country}|{page + 1}"
         else:
-            countries = _countries(self.configuration)
             try:
                 next_index = countries.index(country) + 1
             except ValueError:

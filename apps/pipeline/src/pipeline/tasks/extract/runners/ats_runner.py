@@ -33,22 +33,18 @@ def run_ats_extract(
             continue
 
         policy = registry.policy_for(source_name)
-        phase_saved = 0
+        # Split evenly per board so one board (e.g. the first, biggest one)
+        # can't burn the whole budget and starve the rest, run after run.
+        board_budget = max(1, budget // len(source_slugs))
         logger.info(
-            "Extract ats: source=%s boards=%s budget=%s",
+            "Extract ats: source=%s boards=%s budget=%s board_budget=%s",
             source_name,
             len(source_slugs),
             budget,
+            board_budget,
         )
 
         for slug in source_slugs:
-            if phase_saved >= budget:
-                logger.info(
-                    "Extract ats: budget reached (saved=%s), stopping boards",
-                    phase_saved,
-                )
-                break
-
             rate_limiter.wait(source_name, policy.min_interval_seconds)
             saved_before = result.saved
             failed_before = result.failed
@@ -73,14 +69,15 @@ def run_ats_extract(
                 len(postings),
             )
 
+            board_saved = 0
             for payload in postings:
-                if phase_saved >= budget:
+                if board_saved >= board_budget:
                     break
                 try:
                     raw_job = extractor.to_raw_job(payload, company_slug=slug)
                     if store.save_raw_job(raw_job=raw_job):
                         result.saved += 1
-                        phase_saved += 1
+                        board_saved += 1
                     else:
                         result.skipped += 1
                 except Exception:  # noqa: BLE001 — per-offer boundary
