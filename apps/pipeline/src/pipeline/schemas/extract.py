@@ -33,6 +33,11 @@ class SearchKeywordUpsert(BaseModel):
     active: bool = True
 
 
+class KeywordUpsertResult(BaseModel):
+    upserted: int
+    new_keywords: list[str] = []
+
+
 class SourcePolicy(BaseModel):
     min_interval_seconds: float = 0.5
     max_retries: int = 2

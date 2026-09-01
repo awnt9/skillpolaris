@@ -12,7 +12,7 @@ from pipeline.schemas.enrich import (
     normalize_role_name,
     normalized_skills,
 )
-from pipeline.schemas.extract import SearchKeyword, SearchKeywordUpsert
+from pipeline.schemas.extract import KeywordUpsertResult, SearchKeyword, SearchKeywordUpsert
 from pipeline.schemas.jobs import (
     CanonicalJobOffer,
     PendingCanonicalJob,
@@ -31,7 +31,7 @@ from pipeline.storage.models import (
     Skill,
     StandardRole,
 )
-from sqlalchemy import delete, func, or_, text
+from sqlalchemy import delete, func, literal_column, or_, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session, col, create_engine, select
@@ -131,12 +131,13 @@ class PostgresManager:
             self.session.rollback()
             return False
 
-    def upsert_search_keywords(self, keywords: list[SearchKeywordUpsert]) -> int:
+    def upsert_search_keywords(self, keywords: list[SearchKeywordUpsert]) -> KeywordUpsertResult:
         if not keywords:
-            return 0
+            return KeywordUpsertResult(upserted=0, new_keywords=[])
 
         try:
             affected = 0
+            new_keywords: list[str] = []
             for item in keywords:
                 statement = insert(SearchKeywordRow).values(
                     keyword=item.keyword,
@@ -150,15 +151,23 @@ class PostgresManager:
                         "origin": statement.excluded.origin,
                         "active": statement.excluded.active,
                     },
+                ).returning(
+                    SearchKeywordRow.keyword,
+                    # xmax is unset (0) only for the row version this statement inserted;
+                    # ON CONFLICT DO UPDATE stamps it, marking an already-existing row.
+                    literal_column("(xmax = 0)").label("inserted"),
                 )
-                result = self.session.execute(statement)
-                affected += result.rowcount or 0
+                row = self.session.execute(statement).first()
+                if row is not None:
+                    affected += 1
+                    if row.inserted:
+                        new_keywords.append(row.keyword)
             self.session.commit()
-            return affected
+            return KeywordUpsertResult(upserted=affected, new_keywords=new_keywords)
         except SQLAlchemyError as e:
             print(f" ERROR on PostgresManager: Could not upsert keywords. Cause: {e}")
             self.session.rollback()
-            return 0
+            return KeywordUpsertResult(upserted=0, new_keywords=[])
 
     def refresh_keyword_raw_jobs_counts(self) -> None:
         try:

@@ -33,6 +33,7 @@ def run_keyword_sync(configuration: Settings) -> dict[str, int]:
     logger = get_run_logger()
     providers = build_keyword_providers()
     total_upserted = 0
+    all_new_keywords: list[str] = []
     failed_origins: list[str] = []
 
     with PostgresManager(configuration) as store:
@@ -49,24 +50,36 @@ def run_keyword_sync(configuration: Settings) -> dict[str, int]:
                 continue
 
             elapsed = time.perf_counter() - started
-            upserted = store.upsert_search_keywords(keywords)
-            total_upserted += upserted
+            result = store.upsert_search_keywords(keywords)
+            total_upserted += result.upserted
+            all_new_keywords.extend(result.new_keywords)
             logger.info(
-                "Keyword sync: provider=%s collected=%s upserted=%s elapsed=%.2fs",
+                "Keyword sync: provider=%s collected=%s upserted=%s new=%s elapsed=%.2fs",
                 origin,
                 len(keywords),
-                upserted,
+                result.upserted,
+                len(result.new_keywords),
                 elapsed,
             )
+            if result.new_keywords:
+                logger.info(
+                    "Keyword sync: provider=%s new_keywords=%s",
+                    origin,
+                    result.new_keywords,
+                )
 
         store.refresh_keyword_raw_jobs_counts()
 
     if failed_origins:
         logger.warning("Keyword sync: providers failed=%s", failed_origins)
 
+    if all_new_keywords:
+        logger.info("Keyword sync: new_keywords=%s", all_new_keywords)
+
     return {
         "providers": len(providers),
         "upserted": total_upserted,
+        "new": len(all_new_keywords),
         "failed": len(failed_origins),
     }
 
@@ -77,9 +90,10 @@ def sync_keywords_task() -> dict[str, int]:
     configuration = get_configuration()
     result = run_keyword_sync(configuration)
     logger.info(
-        "Keyword sync finished. providers=%s upserted=%s failed=%s",
+        "Keyword sync finished. providers=%s upserted=%s new=%s failed=%s",
         result["providers"],
         result["upserted"],
+        result["new"],
         result["failed"],
     )
     return result
