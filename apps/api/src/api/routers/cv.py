@@ -2,14 +2,9 @@ from fastapi import APIRouter, HTTPException, UploadFile
 
 from api.config import get_settings
 from api.db import get_engine
-from api.repositories.role_stats import (
-    get_role_aggregates,
-    get_role_skill_stats,
-    resolve_skill_ids,
-)
 from api.schemas.cv import CVMatchResponse, MatchedSkillOut, RoleMatchOut
 from api.services.cv_extractor import CVSkillExtractor
-from api.services.matching import rank_roles
+from api.services.matching import match_cv_to_roles
 from api.services.pdf import extract_text
 from api.services.skills import normalized_skills
 
@@ -47,20 +42,11 @@ async def upload_cv(file: UploadFile) -> CVMatchResponse:
     candidate_names = normalized_skills(profile.hard_skills)
 
     engine = get_engine()
-    skill_id_by_name = resolve_skill_ids(engine, candidate_names)
-    matched_names = sorted(skill_id_by_name)
-    unmatched_names = sorted(set(candidate_names) - set(skill_id_by_name))
-
-    skill_rows = get_role_skill_stats(engine, list(skill_id_by_name.values()))
-    aggregates = get_role_aggregates(
-        engine,
-        list({row.standard_role for row in skill_rows}),
-    )
-    roles = rank_roles(skill_rows, aggregates, top_n=TOP_N_ROLES)
+    result = match_cv_to_roles(engine, candidate_names, top_n=TOP_N_ROLES)
 
     return CVMatchResponse(
-        matched_skills=matched_names,
-        unmatched_skills=unmatched_names,
+        matched_skills=result.matched_skills,
+        unmatched_skills=result.unmatched_skills,
         roles=[
             RoleMatchOut(
                 standard_role=role.standard_role,
@@ -73,6 +59,6 @@ async def upload_cv(file: UploadFile) -> CVMatchResponse:
                     for skill in role.matched_skills
                 ],
             )
-            for role in roles
+            for role in result.roles
         ],
     )

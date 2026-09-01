@@ -6,9 +6,26 @@ turns rows into plain dataclasses.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from sqlalchemy import Engine, bindparam, text
 
-from api.services.matching import RoleAggregateRow, RoleSkillRow
+
+@dataclass(frozen=True)
+class RoleSkillRow:
+    standard_role: str
+    skill_id: int
+    skill_name: str
+    score_weight: float
+    market_pct: float
+
+
+@dataclass(frozen=True)
+class RoleAggregateRow:
+    standard_role: str
+    job_count: int
+    is_remote_pct: float | None
+    language_distribution: dict[str, float]
 
 
 def resolve_skill_ids(engine: Engine, normalized_names: list[str]) -> dict[str, int]:

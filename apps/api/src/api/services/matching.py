@@ -1,31 +1,28 @@
-"""Pure scoring: candidate's matched skills -> ranked role fit.
+"""Candidate skills -> ranked role fit.
 
 score(role) = sum of score_weight over the candidate's matched skills for that
 role (see pipeline.storage.models.RoleSkillStat for how score_weight is
-precomputed). No DB access and no LLM calls here — inputs are already-resolved
-rows, so this is trivial to reason about and test in isolation.
+precomputed).
+
+rank_roles() is pure scoring: no DB access, inputs are already-resolved rows,
+trivial to reason about and test in isolation. match_cv_to_roles() is the
+orchestration entrypoint routers should call — it owns the repository calls
+so routers never talk to api.repositories directly.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+from sqlalchemy import Engine
 
-@dataclass(frozen=True)
-class RoleSkillRow:
-    standard_role: str
-    skill_id: int
-    skill_name: str
-    score_weight: float
-    market_pct: float
-
-
-@dataclass(frozen=True)
-class RoleAggregateRow:
-    standard_role: str
-    job_count: int
-    is_remote_pct: float | None
-    language_distribution: dict[str, float]
+from api.repositories.role_stats import (
+    RoleAggregateRow,
+    RoleSkillRow,
+    get_role_aggregates,
+    get_role_skill_stats,
+    resolve_skill_ids,
+)
 
 
 @dataclass(frozen=True)
@@ -77,3 +74,34 @@ def rank_roles(
 
     results.sort(key=lambda role: role.score, reverse=True)
     return results[:top_n]
+
+
+@dataclass(frozen=True)
+class CVMatchResult:
+    matched_skills: list[str]
+    unmatched_skills: list[str]
+    roles: list[RoleMatch]
+
+
+def match_cv_to_roles(
+    engine: Engine,
+    candidate_names: list[str],
+    *,
+    top_n: int,
+) -> CVMatchResult:
+    skill_id_by_name = resolve_skill_ids(engine, candidate_names)
+    matched_names = sorted(skill_id_by_name)
+    unmatched_names = sorted(set(candidate_names) - set(skill_id_by_name))
+
+    skill_rows = get_role_skill_stats(engine, list(skill_id_by_name.values()))
+    aggregates = get_role_aggregates(
+        engine,
+        list({row.standard_role for row in skill_rows}),
+    )
+    roles = rank_roles(skill_rows, aggregates, top_n=top_n)
+
+    return CVMatchResult(
+        matched_skills=matched_names,
+        unmatched_skills=unmatched_names,
+        roles=roles,
+    )
