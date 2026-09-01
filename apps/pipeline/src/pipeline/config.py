@@ -69,6 +69,12 @@ class Settings(BaseSettings):
     llm_api_key: str = Field(alias="LLM_API_KEY")
     llm_model: str = Field(alias="LLM_MODEL")
 
+    # Observability (optional): self-hosted Langfuse via OpenTelemetry.
+    # Empty = tracing disabled, filter/enrich still run normally.
+    langfuse_otel_endpoint: str | None = Field(alias="LANGFUSE_OTEL_ENDPOINT")
+    langfuse_public_key: str | None = Field(alias="LANGFUSE_PUBLIC_KEY")
+    langfuse_secret_key: str | None = Field(alias="LANGFUSE_SECRET_KEY")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pipeline.config import Settings, get_configuration
+from pipeline.observability import configure_tracing
 from pipeline.storage.postgres import PostgresManager
 from pipeline.tasks.enrich.llm import MetadataExtractor
 from pipeline.tasks.enrich.stats import compute_role_stats
@@ -11,6 +12,7 @@ from prefect import get_run_logger, task
 
 def run_enrich(configuration: Settings) -> dict[str, int]:
     logger = get_run_logger()
+    configure_tracing(configuration)
 
     processed = 0
     failed = 0

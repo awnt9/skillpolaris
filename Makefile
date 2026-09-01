@@ -5,6 +5,7 @@ FULL ?=
 	up-data down-data \
 	up-pipeline down-pipeline \
 	up-app down-app \
+	up-langfuse down-langfuse \
 	extract filter enrich sync-keywords \
 	deploy-flows migrate
 
@@ -26,13 +27,15 @@ down-data:
 
 # Pipeline plane: Prefect server + worker (migrations run in worker entrypoint).
 # make up-pipeline        -> pipeline only (data plane must already be up)
-# make up-pipeline FULL=1 -> data + pipeline
+# make up-pipeline FULL=1 -> data + langfuse + pipeline
 up-pipeline:
 	@if [ "$(FULL)" = "1" ]; then $(MAKE) up-data; fi
+	@if [ "$(FULL)" = "1" ]; then $(MAKE) up-langfuse; fi
 	docker compose -f infra/docker-compose.pipeline.yml --env-file .env up -d --build
 
 down-pipeline:
 	docker compose -f infra/docker-compose.pipeline.yml --env-file .env down
+	@if [ "$(FULL)" = "1" ]; then $(MAKE) down-langfuse; fi
 	@if [ "$(FULL)" = "1" ]; then $(MAKE) down-data; fi
 
 # App plane: API + web.
@@ -44,6 +47,17 @@ up-app:
 
 down-app:
 	docker compose -f infra/docker-compose.app.yml --env-file .env --profile app down
+	@if [ "$(FULL)" = "1" ]; then $(MAKE) down-data; fi
+
+# Langfuse plane: self-hosted LLM observability for filter/enrich.
+# make up-langfuse        -> langfuse only (data plane must already be up)
+# make up-langfuse FULL=1 -> data + langfuse
+up-langfuse:
+	@if [ "$(FULL)" = "1" ]; then $(MAKE) up-data; fi
+	docker compose -f infra/docker-compose.langfuse.yml --env-file .env up -d --wait
+
+down-langfuse:
+	docker compose -f infra/docker-compose.langfuse.yml --env-file .env down
 	@if [ "$(FULL)" = "1" ]; then $(MAKE) down-data; fi
 
 # One-shot flow runs (pipeline plane must be up)

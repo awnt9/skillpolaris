@@ -18,13 +18,15 @@ down-data:
 
 # Pipeline plane: Prefect server + worker (migrations run in worker entrypoint).
 # just up-pipeline        -> pipeline only (data plane must already be up)
-# just up-pipeline --full -> data + pipeline
+# just up-pipeline --full -> data + langfuse + pipeline
 up-pipeline flag="":
     @if [ "{{flag}}" = "--full" ]; then just up-data; fi
+    @if [ "{{flag}}" = "--full" ]; then just up-langfuse; fi
     docker compose -f infra/docker-compose.pipeline.yml --env-file .env up -d --build
 
 down-pipeline flag="":
     docker compose -f infra/docker-compose.pipeline.yml --env-file .env down
+    @if [ "{{flag}}" = "--full" ]; then just down-langfuse; fi
     @if [ "{{flag}}" = "--full" ]; then just down-data; fi
 
 # App plane: API + web.
@@ -36,6 +38,17 @@ up-app flag="":
 
 down-app flag="":
     docker compose -f infra/docker-compose.app.yml --env-file .env --profile app down
+    @if [ "{{flag}}" = "--full" ]; then just down-data; fi
+
+# Langfuse plane: self-hosted LLM observability for filter/enrich.
+# just up-langfuse        -> langfuse only (data plane must already be up)
+# just up-langfuse --full -> data + langfuse
+up-langfuse flag="":
+    @if [ "{{flag}}" = "--full" ]; then just up-data; fi
+    docker compose -f infra/docker-compose.langfuse.yml --env-file .env up -d --wait
+
+down-langfuse flag="":
+    docker compose -f infra/docker-compose.langfuse.yml --env-file .env down
     @if [ "{{flag}}" = "--full" ]; then just down-data; fi
 
 # One-shot flow runs (pipeline plane must be up)

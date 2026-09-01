@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import Counter
 
 from pipeline.config import Settings, get_configuration
+from pipeline.observability import configure_tracing
 from pipeline.schemas.jobs import CanonicalJobOffer
 from pipeline.storage.postgres import PostgresManager
 from pipeline.tasks.filter.llm import FilterLlmGate
@@ -30,6 +31,7 @@ def _resolve_llm_status(
 
 def run_filter(configuration: Settings) -> dict[str, int]:
     logger = get_run_logger()
+    configure_tracing(configuration)
 
     if not (configuration.filter_llm_model or "").strip():
         raise RuntimeError("FILTER_LLM_MODEL is empty; set it before running filter")

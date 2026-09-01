@@ -3,8 +3,8 @@
 #
 # Local build only — pipeline-worker builds from apps/pipeline/Dockerfile.
 #
-# make up-pipeline        / just up-pipeline        -> pipeline only (data must already be up)
-# make up-pipeline FULL=1 / just up-pipeline --full  -> data + pipeline
+# make up-pipeline        / just up-pipeline        -> pipeline only (data + langfuse must already be up)
+# make up-pipeline FULL=1 / just up-pipeline --full  -> data + langfuse + pipeline
 #
 # Worker entrypoint runs alembic upgrade before starting.
 # UI: http://127.0.0.1:${PREFECT_PORT}
