@@ -86,6 +86,8 @@ def run_extract(
             result.skipped - skipped_before,
         )
 
+        store.refresh_keyword_raw_jobs_counts()
+
     logger.info(
         "Extract run finished. keywords_used=%s saved=%s failed=%s skipped=%s",
         result.keywords_used,

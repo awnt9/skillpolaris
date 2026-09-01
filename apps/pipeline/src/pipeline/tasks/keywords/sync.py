@@ -68,8 +68,6 @@ def run_keyword_sync(configuration: Settings) -> dict[str, int]:
                     result.new_keywords,
                 )
 
-        store.refresh_keyword_raw_jobs_counts()
-
     if failed_origins:
         logger.warning("Keyword sync: providers failed=%s", failed_origins)
 
