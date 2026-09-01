@@ -4,9 +4,8 @@
 # Local build only — api/web build from apps/api/Dockerfile and
 # apps/web/Dockerfile.
 #
-# Usage:
-#   make compose ARGS="up -d"
-#   make compose-app ARGS="--profile app up -d"
+# make up-app        / just up-app        -> app only (data must already be up)
+# make up-app FULL=1 / just up-app --full -> data + app
 
 name: skillpolaris-app
 

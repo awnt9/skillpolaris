@@ -3,14 +3,12 @@
 #
 # Local build only — pipeline-worker builds from apps/pipeline/Dockerfile.
 #
-# Preferred: make up
-# Or:
-#   make compose ARGS="up -d --wait"
-#   make compose-pipeline ARGS="up -d --build"
+# make up-pipeline        / just up-pipeline        -> pipeline only (data must already be up)
+# make up-pipeline FULL=1 / just up-pipeline --full  -> data + pipeline
 #
 # Worker entrypoint runs alembic upgrade before starting.
 # UI: http://127.0.0.1:${PREFECT_PORT}
-# Debug: make pipeline-shell
+# Debug: docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker bash
 
 name: ${COMPOSE_PROJECT_NAME:-skillpolaris}-pipeline
 

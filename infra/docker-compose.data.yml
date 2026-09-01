@@ -1,6 +1,7 @@
 # Shared data plane — keep up while developing pipeline or app.
 # Usage:
-#   make compose ARGS="up -d"
+#   make up-data / just up-data
+#   make down-data / just down-data
 
 name: ${COMPOSE_PROJECT_NAME:-skillpolaris}-data
 

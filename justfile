@@ -9,29 +9,36 @@ fix file=FILE:
 format file=FILE:
     uv run ruff format {{file}}
 
-# Full stack: data plane + Prefect/worker (migrations run in worker entrypoint).
-up:
+# Data plane: Postgres + pgweb. Shared network the other planes attach to.
+up-data:
     docker compose -f infra/docker-compose.data.yml --env-file .env up -d --wait
-    docker compose -f infra/docker-compose.pipeline.yml --env-file .env up -d --build
 
-down:
-    docker compose -f infra/docker-compose.pipeline.yml --env-file .env down
+down-data:
     docker compose -f infra/docker-compose.data.yml --env-file .env down
 
-# Individual planes — e.g. just compose ps
-compose *args:
-    docker compose -f infra/docker-compose.data.yml --env-file .env {{args}}
+# Pipeline plane: Prefect server + worker (migrations run in worker entrypoint).
+# just up-pipeline        -> pipeline only (data plane must already be up)
+# just up-pipeline --full -> data + pipeline
+up-pipeline flag="":
+    @if [ "{{flag}}" = "--full" ]; then just up-data; fi
+    docker compose -f infra/docker-compose.pipeline.yml --env-file .env up -d --build
 
-compose-pipeline *args:
-    docker compose -f infra/docker-compose.pipeline.yml --env-file .env {{args}}
+down-pipeline flag="":
+    docker compose -f infra/docker-compose.pipeline.yml --env-file .env down
+    @if [ "{{flag}}" = "--full" ]; then just down-data; fi
 
-compose-app *args:
-    docker compose -f infra/docker-compose.app.yml --env-file .env {{args}}
+# App plane: API + web.
+# just up-app        -> app only (data plane must already be up)
+# just up-app --full -> data + app
+up-app flag="":
+    @if [ "{{flag}}" = "--full" ]; then just up-data; fi
+    docker compose -f infra/docker-compose.app.yml --env-file .env --profile app up -d --build
 
-pipeline-shell:
-    docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker bash
+down-app flag="":
+    docker compose -f infra/docker-compose.app.yml --env-file .env --profile app down
+    @if [ "{{flag}}" = "--full" ]; then just down-data; fi
 
-# Manual runs (one-shot inside the worker container)
+# One-shot flow runs (pipeline plane must be up)
 extract:
     docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \
         uv run --package pipeline python -m pipeline.flows.extract
@@ -48,14 +55,12 @@ sync-keywords:
     docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \
         uv run --package pipeline python -m pipeline.flows.sync_keywords
 
-prefect-deploy:
+# Register/refresh Prefect deployment schedules against the running server.
+deploy-flows:
     docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \
         uv run --package pipeline python -m pipeline.deployments
 
-# Schema migrations (Alembic)
+# Schema migrations (Alembic), always run inside the pipeline worker container.
 migrate:
-    uv run --package pipeline alembic -c apps/pipeline/alembic.ini upgrade head
-
-migrate-docker:
     docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \
         uv run --package pipeline alembic -c apps/pipeline/alembic.ini upgrade head
