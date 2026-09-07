@@ -1,17 +1,31 @@
 """Pure computation of precomputed role/skill matching statistics.
 
-score_weight is the per-skill decomposition of the mean per-offer coverage ratio
-mean_j( |candidate ∩ skills(j)| / |skills(j)| ): summing score_weight over a
-candidate's matched skills reproduces that mean exactly, without iterating jobs
-at match time. market_pct is the plain "% of offers for this role that ask for
-this skill", kept only for display.
+Each job's skills are grouped by `alt_group` (an ungrouped skill is its own
+singleton group of size 1 — today every group is a singleton; alternative
+groups of size >1, e.g. "AWS or GCP", are a later addition). Within a job, a
+group's weight is the requirement_level weight of its strongest member
+(required=1.0, preferred=0.6, nice_to_have=0.3 — see
+pipeline.schemas.enrich.REQUIREMENT_LEVEL_WEIGHT), split evenly across the
+group's members. This keeps the result bounded the same way the old uniform
+1/n split was: matching every member of an alternative group never earns more
+credit than a single fully-specified required skill would. It models
+"coverage of a fully-specified requirement slot", not strict OR semantics —
+knowing one alternative in a group scores less than knowing all of them,
+rather than any single one giving full credit.
+
+score_weight is the per-skill decomposition of the resulting mean per-offer
+weighted coverage: summing score_weight over a candidate's matched skills
+reproduces that mean exactly, without iterating jobs at match time.
+market_pct is the plain "% of offers for this role that ask for this skill"
+(unweighted presence rate), kept only for display.
 """
 
 from __future__ import annotations
 
 from collections import Counter, defaultdict
 
-from pipeline.schemas.stats import EnrichedJobSnapshot, RoleAggregate, RoleSkillWeight
+from pipeline.schemas.enrich import REQUIREMENT_LEVEL_WEIGHT, SkillRequirementLevel
+from pipeline.schemas.stats import EnrichedJobSnapshot, RoleAggregate, RoleSkillWeight, SkillMention
 
 
 def compute_role_stats(
@@ -30,12 +44,28 @@ def compute_role_stats(
         skill_hits: Counter[int] = Counter()
         skill_weight_sum: dict[int, float] = defaultdict(float)
         for job in role_jobs:
-            if not job.skill_ids:
+            if not job.skills:
                 continue
-            per_skill_weight = 1.0 / len(job.skill_ids)
-            for skill_id in job.skill_ids:
-                skill_hits[skill_id] += 1
-                skill_weight_sum[skill_id] += per_skill_weight
+
+            groups: dict[str, list[SkillMention]] = defaultdict(list)
+            for i, mention in enumerate(job.skills):
+                groups[mention.alt_group or f"__singleton_{i}"].append(mention)
+
+            group_weight: dict[str, float] = {}
+            job_total_weight = 0.0
+            for key, members in groups.items():
+                level = max(
+                    REQUIREMENT_LEVEL_WEIGHT[SkillRequirementLevel(member.requirement_level)]
+                    for member in members
+                )
+                group_weight[key] = level
+                job_total_weight += level
+
+            for key, members in groups.items():
+                per_member_weight = group_weight[key] / (len(members) * job_total_weight)
+                for mention in members:
+                    skill_hits[mention.skill_id] += 1
+                    skill_weight_sum[mention.skill_id] += per_member_weight
 
         for skill_id, weight_sum in skill_weight_sum.items():
             skill_weights.append(

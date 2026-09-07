@@ -10,7 +10,7 @@ from pipeline.schemas.enrich import (
     StandardRoleOption,
     merge_synonyms,
     normalize_role_name,
-    normalized_skills,
+    normalized_skill_requirements,
 )
 from pipeline.schemas.extract import KeywordUpsertResult, SearchKeyword, SearchKeywordUpsert
 from pipeline.schemas.jobs import (
@@ -20,7 +20,7 @@ from pipeline.schemas.jobs import (
     RawJobRecord,
 )
 from pipeline.schemas.skills import PendingSkill
-from pipeline.schemas.stats import EnrichedJobSnapshot, RoleAggregate, RoleSkillWeight
+from pipeline.schemas.stats import EnrichedJobSnapshot, RoleAggregate, RoleSkillWeight, SkillMention
 from pipeline.storage.models import (
     CanonicalJob,
     CanonicalJobSkill,
@@ -444,12 +444,13 @@ class PostgresManager:
                     CanonicalJobSkill.canonical_job_id == canonical_id,
                 )
             )
-            for skill_name in normalized_skills(metadata.hard_skills):
-                skill_id = self._upsert_skill(skill_name)
+            for skill in normalized_skill_requirements(metadata.hard_skills):
+                skill_id = self._upsert_skill(skill.name)
                 self.session.add(
                     CanonicalJobSkill(
                         canonical_job_id=canonical_id,
                         skill_id=skill_id,
+                        requirement_level=skill.requirement_level.value,
                     )
                 )
             self.session.commit()
@@ -546,11 +547,21 @@ class PostgresManager:
                 ).where(col(CanonicalJob.standard_role).is_not(None))
             ).all()
 
-            skills_by_job: dict[int, set[int]] = defaultdict(set)
-            for job_id, skill_id in self.session.exec(
-                select(CanonicalJobSkill.canonical_job_id, CanonicalJobSkill.skill_id)
+            skills_by_job: dict[int, list[SkillMention]] = defaultdict(list)
+            for job_id, skill_id, requirement_level in self.session.exec(
+                select(
+                    CanonicalJobSkill.canonical_job_id,
+                    CanonicalJobSkill.skill_id,
+                    CanonicalJobSkill.requirement_level,
+                )
             ).all():
-                skills_by_job[job_id].add(skill_id)
+                skills_by_job[job_id].append(
+                    SkillMention(
+                        skill_id=skill_id,
+                        requirement_level=requirement_level,
+                        alt_group=None,
+                    )
+                )
 
             self.session.commit()
             return [
@@ -558,7 +569,7 @@ class PostgresManager:
                     standard_role=standard_role,
                     is_remote=is_remote,
                     language_required=language_required,
-                    skill_ids=frozenset(skills_by_job.get(job_id, set())),
+                    skills=tuple(skills_by_job.get(job_id, [])),
                 )
                 for job_id, standard_role, is_remote, language_required in job_rows
                 if job_id is not None

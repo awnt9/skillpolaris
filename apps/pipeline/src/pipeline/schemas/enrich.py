@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 
 from pydantic import BaseModel, Field
 
@@ -14,6 +15,34 @@ class StandardRoleOption:
     name: str
     description: str | None = None
     synonyms: list[str] = field(default_factory=list)
+
+
+class SkillRequirementLevel(str, Enum):
+    required = "required"
+    preferred = "preferred"
+    nice_to_have = "nice_to_have"
+
+
+REQUIREMENT_LEVEL_WEIGHT: dict[SkillRequirementLevel, float] = {
+    SkillRequirementLevel.required: 1.0,
+    SkillRequirementLevel.preferred: 0.6,
+    SkillRequirementLevel.nice_to_have: 0.3,
+}
+
+
+class SkillRequirement(BaseModel):
+    """One skill mention in a job posting, with how important the posting says it is."""
+
+    name: str = Field(description="The skill as written (or a conventional short form).")
+    requirement_level: SkillRequirementLevel = Field(
+        default=SkillRequirementLevel.required,
+        description=(
+            "How the posting frames this skill: required (mandatory, or the posting "
+            "doesn't distinguish importance at all), preferred (described as a plus / "
+            "desirable but not mandatory), or nice_to_have (explicitly framed as "
+            "optional or a bonus)."
+        ),
+    )
 
 
 class JobOfferMetadata(BaseModel):
@@ -47,12 +76,12 @@ class JobOfferMetadata(BaseModel):
             "one term."
         ),
     )
-    hard_skills: list[str] = Field(
+    hard_skills: list[SkillRequirement] = Field(
         default_factory=list,
         description=(
-            "Technical skills, tools, or methodologies attested in the posting. "
-            "Each entry must be 1-3 words and appear literally in the text. "
-            "No soft skills."
+            "Technical skills, tools, or methodologies attested in the posting, each "
+            "with its requirement_level. Each skill name must be 1-3 words and appear "
+            "literally in the text. No soft skills, no duplicates."
         ),
     )
     is_remote: bool | None = Field(
@@ -119,13 +148,14 @@ def merge_synonyms(
     return merged
 
 
-def normalized_skills(skills: list[str]) -> list[str]:
+def normalized_skill_requirements(skills: list[SkillRequirement]) -> list[SkillRequirement]:
+    """Dedupe by normalized name, keeping the first occurrence's requirement_level."""
     seen: set[str] = set()
-    ordered: list[str] = []
+    ordered: list[SkillRequirement] = []
     for raw in skills:
-        normalized = normalize_skill_name(raw)
+        normalized = normalize_skill_name(raw.name)
         if not normalized or normalized in seen:
             continue
         seen.add(normalized)
-        ordered.append(normalized)
+        ordered.append(SkillRequirement(name=normalized, requirement_level=raw.requirement_level))
     return ordered

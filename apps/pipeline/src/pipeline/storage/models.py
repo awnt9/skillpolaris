@@ -149,6 +149,10 @@ class CanonicalJobSkill(SQLModel, table=True):
 
     canonical_job_id: int = Field(foreign_key="canonical_jobs.id", primary_key=True)
     skill_id: int = Field(foreign_key="skills.id", primary_key=True)
+    requirement_level: str = Field(
+        default="required",
+        sa_column=Column(Text, nullable=False, server_default="required"),
+    )
 
 
 class RoleSkillStat(SQLModel, table=True):
