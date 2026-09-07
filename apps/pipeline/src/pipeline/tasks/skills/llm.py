@@ -32,6 +32,7 @@ def build_skill_description_agent(
         output_type=PromptedOutput(SkillDescriptionOut),
         system_prompt=load_system_prompt(),
         retries=3,
+        name="describe-skills",
     )
 
 

@@ -16,23 +16,79 @@ plan) until the privacy/consent question is decided separately.
 
 ## Shared setup in the Langfuse UI
 
-- **Judge model**: create an "LLM connection" in Langfuse (Settings →
-  Models) pointing at the same provider the pipeline already uses
-  (`LLM_BASE_URL` / `LLM_API_KEY` in `.env`), or a different model if you'd
-  rather decouple the judge from the model being evaluated.
-- **Target**: on each evaluator, filter by trace/observation name — `filter`
-  and `enrich` respectively (these are the names Prefect/pydantic-ai already
-  use for those agents; check the exact name in Langfuse's trace view before
-  creating the evaluator).
-- **Sampling**: start low — 10-20%. This is thesis/demo scale, not
-  production monitoring; sampling everything just burns judge-model tokens
-  without adding meaningful signal at this volume.
-- **Variables**: map the judge prompt's `{{input}}` / `{{output}}` directly
-  to the fields Langfuse already captures from the trace (the generation's
-  input/output) — no manual JSONPath needed, they already come in full.
-- **Judge output**: in both cases, a numeric 0-1 score plus a short
-  free-text reasoning field — comparable across runs and, if this feeds into
-  the thesis writeup, something citable as a metric.
+Verified end-to-end against the actual running instance (Langfuse v4.27,
+project `pipeline`) while writing this — every step below is the real UI,
+not a guess.
+
+### 1. LLM connection (Settings → LLM Connections)
+
+`Project Settings → LLM Connections → Add LLM Connection`. Since we use
+OpenRouter:
+- **LLM adapter**: `openai` (OpenRouter is OpenAI-compatible).
+- **Provider name**: e.g. `openrouter`.
+- **API Key**: your OpenRouter key (same as `LLM_API_KEY` in `.env`, or a
+  separate one if you want to budget the judge separately).
+- Click **"Show advanced settings"**:
+  - **API Base URL**: `https://openrouter.ai/api/v1` (same as
+    `LLM_BASE_URL`).
+  - **Enable default models**: turn this **off** — it lists OpenAI's own
+    model names (`gpt-4o`, etc.), which don't exist on OpenRouter and will
+    just be confusing in the model picker.
+  - **Custom models → "Add custom model name"**: add the OpenRouter model
+    slug(s) you want available, `provider/model` format — e.g.
+    `deepseek/deepseek-chat-v3.1` (same as the pipeline uses), plus
+    optionally a different one for the judge itself (e.g.
+    `openai/gpt-4o-mini` or `anthropic/claude-3.5-haiku`) so the judge isn't
+    grading the same model that generated the output.
+- **Create connection**.
+
+### 2. The evaluator (`Evaluators` in the sidebar → "New evaluator")
+
+Pick **"New LLM-as-a-judge"** (not one of the templates — we have our own
+rubric below). This opens a 3-step form:
+1. **Define evaluation**: paste the judge prompt (below) into the message
+   box — `{{input}}` and `{{output}}` are recognized automatically as
+   template variables. Under **"with"**, pick the model from the LLM
+   connection above. **Score output**: leave it as `number`, `between 0 and
+   1`.
+2. **Map variables to data**: `{{input}}` → `Input` and `{{output}}` →
+   `Output` are set automatically — nothing to change, Langfuse already
+   captures the full prompt/output on every trace.
+3. **Name evaluator**: e.g. `filter-quality` / `enrich-quality`.
+
+Click **"Create evaluator"**. It will show as **paused — "Default
+evaluation model missing"** until you've picked a model in step 1 above
+(this is expected if you create the evaluator before the LLM connection
+exists — just go back and select the model, then Reactivate).
+
+### 3. The rule (what traces it actually runs on)
+
+An evaluator only runs once it's attached to a **Rule** — a separate object
+that defines the trace filter and sampling rate. From the evaluator page,
+click **Rules → Attach to rule → Create a new rule** (or `Evaluators →
+Rules` tab → `New rule`):
+- **Filter observations**: add `traceName:"filter run"` for the filter
+  judge, or `traceName:"enrich run"` for the enrich judge. These exact
+  names now exist because `build_filter_agent()` and `build_enrich_agent()`
+  pass `name="filter"` / `name="enrich"` to pydantic-ai's `Agent(...)` —
+  pydantic-ai's default instrumentation names an unnamed agent's trace
+  generically `"agent run"`, which is indistinguishable between filter and
+  enrich; the `name=` argument turns that into `"filter run"` / `"enrich
+  run"` (verified live: after this change, `just filter` and `just enrich`
+  produced 499 `filter run` and 25 `enrich run` traces respectively, versus
+  a shared, ambiguous `agent run` before it).
+- **Sampling rate**: a slider + `%` field, defaults to 100%. Set it to
+  10-20% — this is thesis/demo scale, not production monitoring; judging
+  every single trace just burns judge-model tokens without adding
+  meaningful signal at this volume.
+- **Attach evaluators**: pick the evaluator you created in step 2.
+- **Name rule**, then **Save and activate**.
+
+### Judge output
+
+Both rubrics below ask for a numeric 0-1 score plus a short free-text
+reasoning field — comparable across runs and, if this feeds into the thesis
+writeup, something citable as a metric.
 
 ---
 

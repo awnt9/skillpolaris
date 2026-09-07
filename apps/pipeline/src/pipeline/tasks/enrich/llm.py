@@ -35,6 +35,7 @@ def build_enrich_agent(
         output_type=PromptedOutput(JobOfferMetadata),
         system_prompt=load_system_prompt(roles),
         retries=3,
+        name="enrich",
     )
 
 

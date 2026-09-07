@@ -34,6 +34,7 @@ def build_filter_agent(
         output_type=PromptedOutput(FilterLlmDecision),
         system_prompt=SYSTEM_PROMPT,
         retries=2,
+        name="filter",
     )
 
 
