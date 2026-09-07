@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, UploadFile
 
 from api.config import get_settings
 from api.db import get_engine
-from api.schemas.cv import CVMatchResponse, MatchedSkillOut, RoleMatchOut
+from api.schemas.cv import CVMatchResponse, RoleMatchOut, SkillOut
 from api.services.cv_extractor import CVSkillExtractor
 from api.services.matching import match_cv_to_roles
 from api.services.pdf import extract_text
@@ -54,9 +54,13 @@ async def upload_cv(file: UploadFile) -> CVMatchResponse:
                 job_count=role.job_count,
                 is_remote_pct=role.is_remote_pct,
                 language_distribution=role.language_distribution,
-                matched_skills=[
-                    MatchedSkillOut(name=skill.name, market_pct=skill.market_pct)
-                    for skill in role.matched_skills
+                skills=[
+                    SkillOut(
+                        name=skill.name,
+                        market_pct=skill.market_pct,
+                        is_matched=skill.is_matched,
+                    )
+                    for skill in role.skills
                 ],
             )
             for role in result.roles

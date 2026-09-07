@@ -68,6 +68,35 @@ def get_role_skill_stats(engine: Engine, skill_ids: list[int]) -> list[RoleSkill
     ]
 
 
+def get_role_skills(engine: Engine, roles: list[str]) -> list[RoleSkillRow]:
+    """All skills tracked for the given roles, regardless of whether the
+    candidate has them. Used to render the full market ranking, with the
+    candidate's own skills highlighted separately."""
+    if not roles:
+        return []
+
+    statement = text(
+        """
+        SELECT rss.standard_role, rss.skill_id, s.name, rss.score_weight, rss.market_pct
+        FROM role_skill_stats rss
+        JOIN skills s ON s.id = rss.skill_id
+        WHERE rss.standard_role IN :roles
+        """
+    ).bindparams(bindparam("roles", expanding=True))
+    with engine.connect() as conn:
+        rows = conn.execute(statement, {"roles": roles}).all()
+    return [
+        RoleSkillRow(
+            standard_role=role,
+            skill_id=skill_id,
+            skill_name=name,
+            score_weight=score_weight,
+            market_pct=market_pct,
+        )
+        for role, skill_id, name, score_weight, market_pct in rows
+    ]
+
+
 def get_role_aggregates(engine: Engine, roles: list[str]) -> list[RoleAggregateRow]:
     if not roles:
         return []

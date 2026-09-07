@@ -1,6 +1,7 @@
-type MatchedSkill = {
+type Skill = {
   name: string;
   market_pct: number;
+  is_matched: boolean;
 };
 
 type RoleMatch = {
@@ -9,7 +10,7 @@ type RoleMatch = {
   job_count: number;
   is_remote_pct: number | null;
   language_distribution: Record<string, number>;
-  matched_skills: MatchedSkill[];
+  skills: Skill[];
 };
 
 export type CVMatchResponse = {
@@ -44,13 +45,17 @@ export default function CvMatchResults({ result }: { result: CVMatchResponse }) 
             <span className="text-xl font-bold text-accent">{pct(role.score)}</span>
           </div>
           <ul className="mt-3 flex flex-col gap-1.5">
-            {role.matched_skills.map((skill) => (
+            {role.skills.map((skill) => (
               <li
                 key={skill.name}
-                className="flex items-center justify-between text-sm text-secondary"
+                className={`flex items-center justify-between text-sm ${
+                  skill.is_matched ? "font-medium text-accent" : "text-secondary"
+                }`}
               >
                 <span className="capitalize">{skill.name}</span>
-                <span className="font-medium text-primary">{pct(skill.market_pct)}</span>
+                <span className={skill.is_matched ? "font-semibold text-accent" : "font-medium text-primary"}>
+                  {pct(skill.market_pct)}
+                </span>
               </li>
             ))}
           </ul>

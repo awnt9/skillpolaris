@@ -18,9 +18,10 @@ class CVProfile(BaseModel):
     )
 
 
-class MatchedSkillOut(BaseModel):
+class SkillOut(BaseModel):
     name: str
     market_pct: float
+    is_matched: bool
 
 
 class RoleMatchOut(BaseModel):
@@ -29,7 +30,7 @@ class RoleMatchOut(BaseModel):
     job_count: int
     is_remote_pct: float | None
     language_distribution: dict[str, float]
-    matched_skills: list[MatchedSkillOut]
+    skills: list[SkillOut]
 
 
 class CVMatchResponse(BaseModel):
