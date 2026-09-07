@@ -153,6 +153,7 @@ class CanonicalJobSkill(SQLModel, table=True):
         default="required",
         sa_column=Column(Text, nullable=False, server_default="required"),
     )
+    alt_group: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
 
 
 class RoleSkillStat(SQLModel, table=True):

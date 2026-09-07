@@ -43,6 +43,15 @@ class SkillRequirement(BaseModel):
             "optional or a bonus)."
         ),
     )
+    alt_group: str | None = Field(
+        default=None,
+        description=(
+            "Short label (e.g. 'cloud_provider') shared by two or three skills ONLY "
+            "when the posting states they are interchangeable alternatives (explicit "
+            "'or' / '/' / 'either...or' wording) — not for skills that merely co-occur. "
+            "Null for an independent requirement, which is the default."
+        ),
+    )
 
 
 class JobOfferMetadata(BaseModel):
@@ -157,5 +166,11 @@ def normalized_skill_requirements(skills: list[SkillRequirement]) -> list[SkillR
         if not normalized or normalized in seen:
             continue
         seen.add(normalized)
-        ordered.append(SkillRequirement(name=normalized, requirement_level=raw.requirement_level))
+        ordered.append(
+            SkillRequirement(
+                name=normalized,
+                requirement_level=raw.requirement_level,
+                alt_group=raw.alt_group,
+            )
+        )
     return ordered

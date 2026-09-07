@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 
 from pipeline.schemas.enrich import (
@@ -444,13 +444,20 @@ class PostgresManager:
                     CanonicalJobSkill.canonical_job_id == canonical_id,
                 )
             )
-            for skill in normalized_skill_requirements(metadata.hard_skills):
+            skills = normalized_skill_requirements(metadata.hard_skills)
+            # An alt_group the model attached to only one skill in this job is not a
+            # real alternative group — collapse it to an independent requirement
+            # (mathematically identical to a singleton group, see tasks.enrich.stats).
+            group_sizes = Counter(skill.alt_group for skill in skills if skill.alt_group)
+            for skill in skills:
                 skill_id = self._upsert_skill(skill.name)
+                alt_group = skill.alt_group if group_sizes.get(skill.alt_group, 0) > 1 else None
                 self.session.add(
                     CanonicalJobSkill(
                         canonical_job_id=canonical_id,
                         skill_id=skill_id,
                         requirement_level=skill.requirement_level.value,
+                        alt_group=alt_group,
                     )
                 )
             self.session.commit()
@@ -548,18 +555,19 @@ class PostgresManager:
             ).all()
 
             skills_by_job: dict[int, list[SkillMention]] = defaultdict(list)
-            for job_id, skill_id, requirement_level in self.session.exec(
+            for job_id, skill_id, requirement_level, alt_group in self.session.exec(
                 select(
                     CanonicalJobSkill.canonical_job_id,
                     CanonicalJobSkill.skill_id,
                     CanonicalJobSkill.requirement_level,
+                    CanonicalJobSkill.alt_group,
                 )
             ).all():
                 skills_by_job[job_id].append(
                     SkillMention(
                         skill_id=skill_id,
                         requirement_level=requirement_level,
-                        alt_group=None,
+                        alt_group=alt_group,
                     )
                 )
 
