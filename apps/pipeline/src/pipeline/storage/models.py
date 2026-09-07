@@ -141,6 +141,7 @@ class Skill(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(sa_column=Column(Text, nullable=False))
+    description: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
 
 
 class CanonicalJobSkill(SQLModel, table=True):

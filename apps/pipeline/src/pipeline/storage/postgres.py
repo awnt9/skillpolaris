@@ -19,6 +19,7 @@ from pipeline.schemas.jobs import (
     PendingRawJob,
     RawJobRecord,
 )
+from pipeline.schemas.skills import PendingSkill
 from pipeline.schemas.stats import EnrichedJobSnapshot, RoleAggregate, RoleSkillWeight
 from pipeline.storage.models import (
     CanonicalJob,
@@ -566,6 +567,41 @@ class PostgresManager:
             print(f" ERROR on PostgresManager: Could not read enrich snapshot. Cause: {e}")
             self.session.rollback()
             return []
+
+    def get_skills_missing_description(self, limit: int | None = None) -> list[PendingSkill]:
+        try:
+            statement = select(Skill.id, Skill.name).where(col(Skill.description).is_(None))
+            if limit is not None:
+                statement = statement.limit(limit)
+
+            rows = self.session.exec(statement).all()
+            self.session.commit()
+            return [
+                PendingSkill(id=skill_id, name=name)
+                for skill_id, name in rows
+                if skill_id is not None
+            ]
+        except SQLAlchemyError as e:
+            print(
+                f" ERROR on PostgresManager: Could not get skills missing description. Cause: {e}"
+            )
+            self.session.rollback()
+            return []
+
+    def save_skill_description(self, skill_id: int, description: str) -> None:
+        try:
+            row = self.session.get(Skill, skill_id)
+            if row is None:
+                return
+            row.description = description
+            self.session.add(row)
+            self.session.commit()
+        except SQLAlchemyError as e:
+            print(
+                f" ERROR on PostgresManager: Could not save description for skill "
+                f"{skill_id}. Cause: {e}"
+            )
+            self.session.rollback()
 
     def replace_role_stats(
         self,
