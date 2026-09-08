@@ -14,6 +14,10 @@ SYSTEM_PROMPT = (
     "systems (developers, data engineers, DevOps/SRE, ML engineers, QA automation, etc.).\n"
     "Reject sales, pure marketing, HR, facilities, non-technical management, and roles "
     "with no meaningful technical craft.\n"
+    "A management or lead role over a technical team still counts as non-technical "
+    "management, and should be rejected, when the role itself is primarily account "
+    "ownership, customer relationship, or business strategy rather than hands-on "
+    "technical design or building.\n"
     "Use uncertain only when the text is genuinely ambiguous.\n"
     "Return flat JSON with keys label and confidence only."
 )
