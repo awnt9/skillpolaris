@@ -25,14 +25,16 @@ export default async function HomePage() {
   return (
     <div className="flex flex-col gap-16 py-8">
       <section className="relative text-center">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute left-1/2 top-10 -z-10 h-48 w-[32rem] -translate-x-1/2 rounded-full opacity-25 blur-[100px]"
-          style={{ backgroundColor: "#DFF7FF" }}
-        />
-        <h1 className="text-4xl font-bold tracking-tight text-primary sm:text-5xl">
-          SkillPolaris
-        </h1>
+        <div className="relative inline-block">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-16 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-40 blur-[80px]"
+            style={{ backgroundColor: "#2D3FE7" }}
+          />
+          <h1 className="text-4xl font-bold tracking-tight text-primary sm:text-5xl">
+            SkillPolaris
+          </h1>
+        </div>
         <p className="mx-auto mt-4 max-w-2xl text-lg text-secondary">
           Empowering career decision-making.
         </p>
