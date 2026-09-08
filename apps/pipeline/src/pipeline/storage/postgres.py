@@ -19,12 +19,14 @@ from pipeline.schemas.jobs import (
     PendingRawJob,
     RawJobRecord,
 )
+from pipeline.schemas.judge import JudgeEnrichedJob, JudgeSkillMention
 from pipeline.schemas.skills import PendingSkill
 from pipeline.schemas.stats import EnrichedJobSnapshot, RoleAggregate, RoleSkillWeight, SkillMention
 from pipeline.storage.models import (
     CanonicalJob,
     CanonicalJobSkill,
     FeedCursor,
+    LlmJudgeScore,
     RawJob,
     RoleSkillStat,
     RoleStat,
@@ -619,6 +621,125 @@ class PostgresManager:
             print(
                 f" ERROR on PostgresManager: Could not save description for skill "
                 f"{skill_id}. Cause: {e}"
+            )
+            self.session.rollback()
+
+    def get_recent_llm_filtered_raw_jobs(self, limit: int) -> list[PendingRawJob]:
+        """Most recently LLM-decided raw_jobs, for the async judge to sample from."""
+        try:
+            statement = (
+                select(RawJob)
+                .where(RawJob.filter_method == "llm")
+                .where(col(RawJob.filter_status).not_in(["pending", "failed"]))
+                .order_by(col(RawJob.filtered_at).desc())
+                .limit(limit)
+            )
+            rows = self.session.exec(statement).all()
+            self.session.commit()
+            return [
+                PendingRawJob(
+                    id=row.id,
+                    source=row.source,
+                    job_id=row.job_id,
+                    keyword=row.keyword,
+                    title_raw=row.title_raw or "",
+                    description_raw=row.description_raw or "",
+                    url=row.url,
+                    posted_at_raw=row.posted_at_raw,
+                )
+                for row in rows
+                if row.id is not None
+            ]
+        except SQLAlchemyError as e:
+            print(
+                f" ERROR on PostgresManager: Could not get recent LLM-filtered jobs. Cause: {e}"
+            )
+            self.session.rollback()
+            return []
+
+    def get_recent_enriched_jobs(self, limit: int) -> list[JudgeEnrichedJob]:
+        """Most recently enriched canonical_jobs, for the async judge to sample from."""
+        try:
+            job_rows = self.session.exec(
+                select(
+                    CanonicalJob.id,
+                    CanonicalJob.title,
+                    CanonicalJob.description,
+                    CanonicalJob.standard_role,
+                    CanonicalJob.is_remote,
+                    CanonicalJob.language_required,
+                )
+                .where(CanonicalJob.enrich_status == "processed")
+                .order_by(col(CanonicalJob.enriched_at).desc())
+                .limit(limit)
+            ).all()
+            job_ids = [job_id for job_id, *_ in job_rows if job_id is not None]
+
+            skills_by_job: dict[int, list[JudgeSkillMention]] = defaultdict(list)
+            if job_ids:
+                for job_id, name, requirement_level, alt_group in self.session.exec(
+                    select(
+                        CanonicalJobSkill.canonical_job_id,
+                        Skill.name,
+                        CanonicalJobSkill.requirement_level,
+                        CanonicalJobSkill.alt_group,
+                    )
+                    .join(Skill, col(Skill.id) == CanonicalJobSkill.skill_id)
+                    .where(col(CanonicalJobSkill.canonical_job_id).in_(job_ids))
+                ).all():
+                    skills_by_job[job_id].append(
+                        JudgeSkillMention(
+                            name=name,
+                            requirement_level=requirement_level,
+                            alt_group=alt_group,
+                        )
+                    )
+
+            self.session.commit()
+            return [
+                JudgeEnrichedJob(
+                    id=job_id,
+                    title=title,
+                    description=description,
+                    standard_role=standard_role,
+                    is_remote=is_remote,
+                    language_required=language_required,
+                    hard_skills=skills_by_job.get(job_id, []),
+                )
+                for job_id, title, description, standard_role, is_remote, language_required in (
+                    job_rows
+                )
+                if job_id is not None
+            ]
+        except SQLAlchemyError as e:
+            print(f" ERROR on PostgresManager: Could not get recent enriched jobs. Cause: {e}")
+            self.session.rollback()
+            return []
+
+    def save_judge_score(
+        self,
+        *,
+        judge_type: str,
+        target_id: int,
+        score: float,
+        reasoning: str,
+        judge_model: str,
+    ) -> None:
+        try:
+            self.session.add(
+                LlmJudgeScore(
+                    judge_type=judge_type,
+                    target_id=target_id,
+                    score=score,
+                    reasoning=reasoning,
+                    judge_model=judge_model,
+                )
+            )
+            self.session.commit()
+        except SQLAlchemyError as e:
+            print(
+                f" ERROR on PostgresManager: Could not save {judge_type} judge score for "
+                f"target {target_id}. Cause: {e}"
             )
             self.session.rollback()
 

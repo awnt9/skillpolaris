@@ -197,3 +197,20 @@ class RoleStat(SQLModel, table=True):
         default=None,
         sa_column=Column(DateTime, server_default=func.now(), nullable=True),
     )
+
+
+class LlmJudgeScore(SQLModel, table=True):
+    """LLM-as-a-judge quality score for a sampled filter or enrich output."""
+
+    __tablename__ = "llm_judge_scores"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    judge_type: str = Field(sa_column=Column(Text, nullable=False, index=True))
+    target_id: int = Field(sa_column=Column(Integer, nullable=False))
+    score: float = Field(sa_column=Column(Float, nullable=False))
+    reasoning: str = Field(sa_column=Column(Text, nullable=False))
+    judge_model: str = Field(sa_column=Column(Text, nullable=False))
+    created_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime, server_default=func.now(), nullable=False),
+    )

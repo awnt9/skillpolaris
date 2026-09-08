@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     )
     filter_llm_model: str = Field(alias="FILTER_LLM_MODEL")
 
+    judge_sample_size: int = Field(alias="JUDGE_SAMPLE_SIZE", ge=1)
+    judge_sample_rate: float = Field(alias="JUDGE_SAMPLE_RATE", ge=0.0, le=1.0)
+
     # Comma-separated Greenhouse board tokens (e.g. "figma,stripe").
     greenhouse_board_tokens: str = Field(alias="GREENHOUSE_BOARD_TOKENS")
     # Comma-separated Lever board tokens (e.g. "netflix,ramp").

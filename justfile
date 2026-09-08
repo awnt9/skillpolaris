@@ -72,6 +72,10 @@ describe-skills:
     docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \
         uv run --package pipeline python -m pipeline.flows.describe_skills
 
+judge:
+    docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \
+        uv run --package pipeline python -m pipeline.flows.judge
+
 # Register/refresh Prefect deployment schedules against the running server.
 deploy-flows:
     docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \
