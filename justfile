@@ -76,6 +76,10 @@ judge:
     docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \
         uv run --package pipeline python -m pipeline.flows.judge
 
+prune:
+    docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \
+        uv run --package pipeline python -m pipeline.flows.prune
+
 # Register/refresh Prefect deployment schedules against the running server.
 deploy-flows:
     docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \

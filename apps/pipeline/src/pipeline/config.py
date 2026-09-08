@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     judge_sample_size: int = Field(alias="JUDGE_SAMPLE_SIZE", ge=1)
     judge_sample_rate: float = Field(alias="JUDGE_SAMPLE_RATE", ge=0.0, le=1.0)
 
+    # Age (by canonical_jobs.created_at — posted_at is free-text per source
+    # and not reliably parseable) past which a canonical job is purged, along
+    # with its skills, and role_skill_stats/role_stats recomputed without it.
+    canonical_job_max_age_days: int = Field(alias="CANONICAL_JOB_MAX_AGE_DAYS", ge=1)
+
     # Comma-separated Greenhouse board tokens (e.g. "figma,stripe").
     greenhouse_board_tokens: str = Field(alias="GREENHOUSE_BOARD_TOKENS")
     # Comma-separated Lever board tokens (e.g. "netflix,ramp").

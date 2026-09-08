@@ -544,6 +544,32 @@ class PostgresManager:
             )
             self.session.rollback()
 
+    def delete_stale_canonical_jobs(self, max_age_days: int) -> int:
+        """Purge canonical_jobs older than max_age_days (by created_at — raw
+        jobs stay put, filtering isn't re-run against them), along with their
+        skill links. Returns how many were deleted."""
+        try:
+            cutoff = datetime.now(timezone.utc) - timedelta(days=max_age_days)
+            stale_ids = self.session.exec(
+                select(CanonicalJob.id).where(col(CanonicalJob.created_at) < cutoff)
+            ).all()
+            if not stale_ids:
+                self.session.commit()
+                return 0
+
+            self.session.execute(
+                delete(CanonicalJobSkill).where(
+                    col(CanonicalJobSkill.canonical_job_id).in_(stale_ids)
+                )
+            )
+            self.session.execute(delete(CanonicalJob).where(col(CanonicalJob.id).in_(stale_ids)))
+            self.session.commit()
+            return len(stale_ids)
+        except SQLAlchemyError as e:
+            print(f" ERROR on PostgresManager: Could not delete stale canonical jobs. Cause: {e}")
+            self.session.rollback()
+            return 0
+
     def get_enrich_snapshot(self) -> list[EnrichedJobSnapshot]:
         """Read the fields role/skill stats are computed from. No aggregation here —
         that logic lives in tasks.enrich.stats.compute_role_stats."""
