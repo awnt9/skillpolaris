@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pipeline.observability import start_root_span
 from pipeline.schemas.skills import SkillDescriptionOut
 from pydantic_ai import Agent, PromptedOutput
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
@@ -41,5 +42,9 @@ class SkillDescriber:
         self.agent = build_skill_description_agent(base_url=base_url, api_key=api_key, model=model)
 
     def describe(self, skill_name: str) -> str:
-        result = self.agent.run_sync(f"SKILL: {skill_name}")
+        user_content = f"SKILL: {skill_name}"
+        with start_root_span("describe-skills") as span:
+            result = self.agent.run_sync(user_content)
+            if span is not None:
+                span.update(input=user_content, output=result.output.model_dump())
         return result.output.description

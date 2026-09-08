@@ -100,7 +100,7 @@ services:
       start_period: 1s
 
   langfuse-worker:
-    image: docker.langfuse.com/langfuse/langfuse-worker:4
+    image: docker.langfuse.com/langfuse/langfuse-worker:4.30.0
     container_name: ${LANGFUSE_WORKER_CONTAINER_NAME:-langfuse_worker}
     restart: unless-stopped
     depends_on: &langfuse-depends-on
@@ -117,6 +117,7 @@ services:
       DATABASE_URL: postgresql://langfuse:${LANGFUSE_POSTGRES_PASSWORD}@langfuse-postgres:5432/langfuse
       SALT: ${LANGFUSE_SALT}
       ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY}
+      LANGFUSE_MIGRATION_V4_WRITE_MODE: ${LANGFUSE_MIGRATION_V4_WRITE_MODE}
       TELEMETRY_ENABLED: "false"
       CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
       CLICKHOUSE_URL: http://langfuse-clickhouse:8123
@@ -145,7 +146,7 @@ services:
       - skillpolaris
 
   langfuse-web:
-    image: docker.langfuse.com/langfuse/langfuse:4
+    image: docker.langfuse.com/langfuse/langfuse:4.30.0
     container_name: ${LANGFUSE_WEB_CONTAINER_NAME:-langfuse_web}
     restart: unless-stopped
     depends_on: *langfuse-depends-on

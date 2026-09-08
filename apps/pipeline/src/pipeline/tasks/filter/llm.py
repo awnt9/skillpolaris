@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pipeline.observability import start_root_span
 from pipeline.schemas.filter import FilterLlmDecision
 from pydantic_ai import Agent, PromptedOutput
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
@@ -69,5 +70,8 @@ class FilterLlmGate:
             f"DESCRIPTION_EXCERPT:\n{description_excerpt}\n"
         )
 
-        result = self.agent.run_sync(user_content)
+        with start_root_span("filter") as span:
+            result = self.agent.run_sync(user_content)
+            if span is not None:
+                span.update(input=user_content, output=result.output.model_dump())
         return result.output

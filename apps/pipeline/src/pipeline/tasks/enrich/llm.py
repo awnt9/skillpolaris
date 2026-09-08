@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pipeline.observability import start_root_span
 from pipeline.schemas.enrich import JobOfferMetadata, StandardRoleOption, format_roles_block
 from pydantic_ai import Agent, PromptedOutput
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
@@ -57,5 +58,8 @@ class MetadataExtractor:
 
     def extract(self, *, title: str, description: str) -> JobOfferMetadata:
         user_content = f"TITLE: {title}\n\n### JOB OFFER TEXT:\n{description}\n###"
-        result = self.agent.run_sync(user_content)
+        with start_root_span("enrich") as span:
+            result = self.agent.run_sync(user_content)
+            if span is not None:
+                span.update(input=user_content, output=result.output.model_dump())
         return result.output
