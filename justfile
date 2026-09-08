@@ -76,6 +76,12 @@ judge:
     docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \
         uv run --package pipeline python -m pipeline.flows.judge
 
+# Calibration only, runs on the host (not in a container): LLM-as-a-judge over
+# local CV PDFs, for manually tuning apps/api/src/api/prompts/cv_extract.md.
+# Never wired into /cv/upload. Usage: just judge-cv "path/to/cv1.pdf path/to/cv2.pdf"
+judge-cv pdfs:
+    uv run --package api python -m api.scripts.judge_cv {{pdfs}}
+
 prune:
     docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \
         uv run --package pipeline python -m pipeline.flows.prune
