@@ -76,6 +76,10 @@ class CanonicalJob(SQLModel, table=True):
         default=None,
         sa_column=Column(Text, nullable=True),
     )
+    min_years_experience: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, nullable=True),
+    )
     created_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime, server_default=func.now(), nullable=True),
@@ -170,6 +174,7 @@ class RoleSkillStat(SQLModel, table=True):
 
     standard_role: str = Field(sa_column=Column(Text, primary_key=True))
     skill_id: int = Field(foreign_key="skills.id", primary_key=True)
+    experience_years: int = Field(sa_column=Column(Integer, primary_key=True))
     score_weight: float = Field(sa_column=Column(Float, nullable=False))
     market_pct: float = Field(sa_column=Column(Float, nullable=False))
     computed_at: Optional[datetime] = Field(
@@ -184,6 +189,7 @@ class RoleStat(SQLModel, table=True):
     __tablename__ = "role_stats"
 
     standard_role: str = Field(sa_column=Column(Text, primary_key=True))
+    experience_years: int = Field(sa_column=Column(Integer, primary_key=True))
     job_count: int = Field(sa_column=Column(Integer, nullable=False))
     is_remote_pct: Optional[float] = Field(
         default=None,

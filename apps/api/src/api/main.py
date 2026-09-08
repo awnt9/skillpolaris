@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routers import cv, stats
+from api.routers import cv, roles, stats
 
 app = FastAPI(title="SkillPolaris API")
 
@@ -16,6 +16,7 @@ app.add_middleware(
 
 app.include_router(stats.router)
 app.include_router(cv.router)
+app.include_router(roles.router)
 
 
 @app.get("/health")

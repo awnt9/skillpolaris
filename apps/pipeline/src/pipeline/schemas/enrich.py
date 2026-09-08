@@ -108,6 +108,15 @@ class JobOfferMetadata(BaseModel):
             "(Spanish, French, English). Null if not specified."
         ),
     )
+    min_years_experience: int | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Minimum years of professional experience explicitly required by the "
+            "posting, as a plain integer (e.g. 3). Use the lower bound if a range is "
+            "given (e.g. '3-5 years' -> 3). Null if not stated as a number."
+        ),
+    )
 
 
 def format_roles_block(roles: list[StandardRoleOption]) -> str:

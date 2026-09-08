@@ -9,7 +9,8 @@ RULES:
    - **alt_group**: set the SAME short label (e.g. `cloud_provider`) on 2-3 skills ONLY when the posting explicitly frames them as a closed, exclusive choice — language like "X or Y", "X/Y", "either X or Y", "X (or Y)". Do NOT group skills just because they're related or commonly used together (e.g. "React and Redux" is two independent requirements, not alternatives). Do NOT group an illustrative example list introduced by "e.g.", "such as", "like", "for example", or "etc." — those name examples of a broader category, not a closed set of substitutes (e.g. "cloud platforms (e.g. AWS, GCP, Azure)" means the posting wants cloud experience and is illustrating what counts, not offering AWS/GCP/Azure as three interchangeable answers — extract each tool as an independent required skill instead). Leave `alt_group` null — the default — for every other skill.
 3. **is_remote**: true if the posting states remote or hybrid work; false if it states on-site only; null if modality is not stated.
 4. **language_required**: Primary human language required for the job, as an English name (English, French, Spanish, …). Null if not specified.
-5. **Zero hallucination**: If a field is not supported by the text, use null or an empty list.
+5. **min_years_experience**: The minimum years of professional experience explicitly required, as a plain integer. If the posting gives a range ("3-5 years"), use the lower bound. If it says "senior" or similar without a number, leave null — do not infer a number from a seniority label. Null if not stated numerically.
+6. **Zero hallucination**: If a field is not supported by the text, use null or an empty list.
 
 EXISTING STANDARD ROLES:
 {{ROLES}}

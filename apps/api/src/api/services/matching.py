@@ -40,12 +40,14 @@ class SkillDisplay:
 @dataclass(frozen=True)
 class RoleScore:
     standard_role: str
+    experience_years: int | None
     score: float
 
 
 @dataclass(frozen=True)
 class RoleMatch:
     standard_role: str
+    experience_years: int | None
     score: float
     job_count: int
     is_remote_pct: float | None
@@ -53,15 +55,44 @@ class RoleMatch:
     skills: list[SkillDisplay]
 
 
-def rank_roles(skill_rows: list[RoleSkillRow], *, top_n: int) -> list[RoleScore]:
+def rank_roles(
+    skill_rows: list[RoleSkillRow],
+    *,
+    candidate_years: int | None,
+    top_n: int,
+) -> list[RoleScore]:
     """Score each role by summing score_weight over the candidate's matched
-    skills for that role, and return the top_n roles by score."""
-    scores: dict[str, float] = defaultdict(float)
-    for row in skill_rows:
-        scores[row.standard_role] += row.score_weight
+    skills in the bucket matching candidate_years, and return the top_n by
+    score. Each role appears at most once — experience_years only selects
+    *which* bucket scores the role, it isn't a ranking dimension.
 
-    ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
-    return [RoleScore(standard_role=role, score=score) for role, score in ranked[:top_n]]
+    role_skill_stats bakes postings with no stated years into every numbered
+    bucket already (see tasks.enrich.stats.compute_role_stats), so a role
+    only misses the exact candidate_years bucket when it has zero postings at
+    that year AND zero postings with unstated years — rare in practice. When
+    that happens, fall back to the UNSPECIFIED_EXPERIENCE_YEARS bucket
+    (experience_years=None here, already translated by the repository layer);
+    a role with no data in either bucket is dropped from the ranking.
+    """
+    rows_by_role: dict[str, list[RoleSkillRow]] = defaultdict(list)
+    for row in skill_rows:
+        rows_by_role[row.standard_role].append(row)
+
+    scored: list[RoleScore] = []
+    for role, rows in rows_by_role.items():
+        bucket_years = candidate_years
+        bucket_rows = [row for row in rows if row.experience_years == bucket_years]
+        if not bucket_rows and bucket_years is not None:
+            bucket_years = None
+            bucket_rows = [row for row in rows if row.experience_years is None]
+        if not bucket_rows:
+            continue
+
+        score = sum(row.score_weight for row in bucket_rows)
+        scored.append(RoleScore(standard_role=role, experience_years=bucket_years, score=score))
+
+    scored.sort(key=lambda role_score: role_score.score, reverse=True)
+    return scored[:top_n]
 
 
 def build_role_matches(
@@ -72,17 +103,20 @@ def build_role_matches(
     *,
     skills_per_role: int,
 ) -> list[RoleMatch]:
-    aggregates_by_role = {aggregate.standard_role: aggregate for aggregate in aggregates}
+    aggregates_by_bucket = {
+        (aggregate.standard_role, aggregate.experience_years): aggregate for aggregate in aggregates
+    }
 
-    skills_by_role: dict[str, list[RoleSkillRow]] = defaultdict(list)
+    skills_by_bucket: dict[tuple[str, int | None], list[RoleSkillRow]] = defaultdict(list)
     for row in role_skills:
-        skills_by_role[row.standard_role].append(row)
+        skills_by_bucket[(row.standard_role, row.experience_years)].append(row)
 
     results: list[RoleMatch] = []
     for ranked in ranked_roles:
-        aggregate = aggregates_by_role.get(ranked.standard_role)
+        bucket = (ranked.standard_role, ranked.experience_years)
+        aggregate = aggregates_by_bucket.get(bucket)
         rows = sorted(
-            skills_by_role.get(ranked.standard_role, []),
+            skills_by_bucket.get(bucket, []),
             key=lambda row: row.market_pct,
             reverse=True,
         )[:skills_per_role]
@@ -90,6 +124,7 @@ def build_role_matches(
         results.append(
             RoleMatch(
                 standard_role=ranked.standard_role,
+                experience_years=ranked.experience_years,
                 score=ranked.score,
                 job_count=aggregate.job_count if aggregate else 0,
                 is_remote_pct=aggregate.is_remote_pct if aggregate else None,
@@ -119,6 +154,7 @@ def match_cv_to_roles(
     engine: Engine,
     candidate_names: list[str],
     *,
+    candidate_years: int | None,
     top_n: int,
     skills_per_role: int = 20,
 ) -> CVMatchResult:
@@ -128,11 +164,11 @@ def match_cv_to_roles(
     matched_skill_ids = set(skill_id_by_name.values())
 
     candidate_skill_rows = get_role_skill_stats(engine, list(matched_skill_ids))
-    ranked_roles = rank_roles(candidate_skill_rows, top_n=top_n)
-    role_names = [role.standard_role for role in ranked_roles]
+    ranked_roles = rank_roles(candidate_skill_rows, candidate_years=candidate_years, top_n=top_n)
+    role_pairs = [(role.standard_role, role.experience_years) for role in ranked_roles]
 
-    role_skills = get_role_skills(engine, role_names)
-    aggregates = get_role_aggregates(engine, role_names)
+    role_skills = get_role_skills(engine, role_pairs)
+    aggregates = get_role_aggregates(engine, role_pairs)
     roles = build_role_matches(
         ranked_roles,
         role_skills,

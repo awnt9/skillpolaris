@@ -16,6 +16,14 @@ class CVProfile(BaseModel):
             "No soft skills."
         ),
     )
+    years_experience: int | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Candidate's total years of professional experience, estimated from "
+            "the work history's dates. Null if not enough date information is given."
+        ),
+    )
 
 
 class SkillOut(BaseModel):
@@ -26,6 +34,7 @@ class SkillOut(BaseModel):
 
 class RoleMatchOut(BaseModel):
     standard_role: str
+    experience_years: int | None
     score: float
     job_count: int
     is_remote_pct: float | None
@@ -36,4 +45,5 @@ class RoleMatchOut(BaseModel):
 class CVMatchResponse(BaseModel):
     matched_skills: list[str]
     unmatched_skills: list[str]
+    candidate_years_experience: int | None
     roles: list[RoleMatchOut]

@@ -42,14 +42,21 @@ async def upload_cv(file: UploadFile) -> CVMatchResponse:
     candidate_names = normalized_skills(profile.hard_skills)
 
     engine = get_engine()
-    result = match_cv_to_roles(engine, candidate_names, top_n=TOP_N_ROLES)
+    result = match_cv_to_roles(
+        engine,
+        candidate_names,
+        candidate_years=profile.years_experience,
+        top_n=TOP_N_ROLES,
+    )
 
     return CVMatchResponse(
         matched_skills=result.matched_skills,
         unmatched_skills=result.unmatched_skills,
+        candidate_years_experience=profile.years_experience,
         roles=[
             RoleMatchOut(
                 standard_role=role.standard_role,
+                experience_years=role.experience_years,
                 score=role.score,
                 job_count=role.job_count,
                 is_remote_pct=role.is_remote_pct,

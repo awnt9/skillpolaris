@@ -437,6 +437,7 @@ class PostgresManager:
             row.standard_role = role.name if role is not None else role_name
             row.is_remote = metadata.is_remote
             row.language_required = metadata.language_required
+            row.min_years_experience = metadata.min_years_experience
             row.enrich_status = "processed"
             row.enriched_at = datetime.now(timezone.utc)
             self.session.add(row)
@@ -553,6 +554,7 @@ class PostgresManager:
                     CanonicalJob.standard_role,
                     CanonicalJob.is_remote,
                     CanonicalJob.language_required,
+                    CanonicalJob.min_years_experience,
                 ).where(col(CanonicalJob.standard_role).is_not(None))
             ).all()
 
@@ -579,9 +581,12 @@ class PostgresManager:
                     standard_role=standard_role,
                     is_remote=is_remote,
                     language_required=language_required,
+                    min_years_experience=min_years_experience,
                     skills=tuple(skills_by_job.get(job_id, [])),
                 )
-                for job_id, standard_role, is_remote, language_required in job_rows
+                for job_id, standard_role, is_remote, language_required, min_years_experience in (
+                    job_rows
+                )
                 if job_id is not None
             ]
         except SQLAlchemyError as e:
@@ -760,6 +765,7 @@ class PostgresManager:
                     RoleSkillStat(
                         standard_role=weight.standard_role,
                         skill_id=weight.skill_id,
+                        experience_years=weight.experience_years,
                         score_weight=weight.score_weight,
                         market_pct=weight.market_pct,
                     )
@@ -770,6 +776,7 @@ class PostgresManager:
                 self.session.add(
                     RoleStat(
                         standard_role=aggregate.standard_role,
+                        experience_years=aggregate.experience_years,
                         job_count=aggregate.job_count,
                         is_remote_pct=aggregate.is_remote_pct,
                         language_distribution=aggregate.language_distribution,
