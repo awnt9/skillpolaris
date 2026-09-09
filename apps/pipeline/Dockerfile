@@ -19,12 +19,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY apps/pipeline/src ./apps/pipeline/src
 COPY apps/pipeline/alembic.ini apps/pipeline/alembic.ini
 COPY apps/pipeline/alembic ./apps/pipeline/alembic
-COPY apps/pipeline/docker-entrypoint.sh /docker-entrypoint.sh
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --package pipeline \
-    && chmod +x /docker-entrypoint.sh
+    uv sync --frozen --package pipeline
 
-# Migrate (wait for Postgres), then register deployments and poll the work pool.
-ENTRYPOINT ["/docker-entrypoint.sh"]
+# Registers deployments and polls the work pool. Migrations are applied
+# manually: `just migrate` / `make migrate`.
 CMD ["uv", "run", "--package", "pipeline", "python", "-m", "pipeline.worker"]
