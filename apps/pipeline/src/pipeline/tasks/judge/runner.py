@@ -106,6 +106,7 @@ def run_judge_enrich(configuration: Settings) -> dict[str, int]:
                     "standard_role": job.standard_role,
                     "is_remote": job.is_remote,
                     "language_required": job.language_required,
+                    "min_years_experience": job.min_years_experience,
                     "hard_skills": [skill.model_dump() for skill in job.hard_skills],
                 }
             )

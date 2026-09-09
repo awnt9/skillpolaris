@@ -699,6 +699,7 @@ class PostgresManager:
                     CanonicalJob.standard_role,
                     CanonicalJob.is_remote,
                     CanonicalJob.language_required,
+                    CanonicalJob.min_years_experience,
                 )
                 .where(CanonicalJob.enrich_status == "processed")
                 .order_by(col(CanonicalJob.enriched_at).desc())
@@ -735,9 +736,10 @@ class PostgresManager:
                     standard_role=standard_role,
                     is_remote=is_remote,
                     language_required=language_required,
+                    min_years_experience=min_years_experience,
                     hard_skills=skills_by_job.get(job_id, []),
                 )
-                for job_id, title, description, standard_role, is_remote, language_required in (
+                for job_id, title, description, standard_role, is_remote, language_required, min_years_experience in (
                     job_rows
                 )
                 if job_id is not None

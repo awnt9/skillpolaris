@@ -25,4 +25,5 @@ class JudgeEnrichedJob(BaseModel):
     standard_role: str | None = None
     is_remote: bool | None = None
     language_required: str | None = None
+    min_years_experience: int | None = None
     hard_skills: list[JudgeSkillMention]
