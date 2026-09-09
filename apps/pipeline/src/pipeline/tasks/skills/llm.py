@@ -48,3 +48,11 @@ class SkillDescriber:
             if span is not None:
                 span.update(input=user_content, output=result.output.model_dump())
         return result.output.description
+
+    async def describe_async(self, skill_name: str) -> str:
+        user_content = f"SKILL: {skill_name}"
+        with start_root_span("describe-skills") as span:
+            result = await self.agent.run(user_content)
+            if span is not None:
+                span.update(input=user_content, output=result.output.model_dump())
+        return result.output.description
