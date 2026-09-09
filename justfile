@@ -13,21 +13,31 @@ format file=FILE:
 up-data:
     docker compose -f infra/docker-compose.data.yml --env-file .env up -d --wait
 
-down-data:
-    docker compose -f infra/docker-compose.data.yml --env-file .env down
+# just down-data      -> stop containers, keep volumes (data survives)
+# just down-data -v   -> also delete volumes (wipes the database)
+down-data volumes="":
+    docker compose -f infra/docker-compose.data.yml --env-file .env down {{ if volumes == "-v" { "-v" } else { "" } }}
 
-# Pipeline plane: Prefect server + worker (migrations run in worker entrypoint).
-# just up-pipeline        -> pipeline only (data plane must already be up)
-# just up-pipeline --full -> data + langfuse + pipeline
+# Pipeline plane: Prefect server + worker + langfuse (langfuse is exclusive
+# to pipeline, so it's not gated behind --full). Applies migrations
+# automatically once the worker is up (see `migrate`) — every deploy lands
+# on head schema.
+# just up-pipeline        -> pipeline + langfuse (data plane must already be up)
+# just up-pipeline --full -> data + pipeline + langfuse
 up-pipeline flag="":
     @if [ "{{flag}}" = "--full" ]; then just up-data; fi
-    @if [ "{{flag}}" = "--full" ]; then just up-langfuse; fi
-    docker compose -f infra/docker-compose.pipeline.yml --env-file .env up -d --build
+    just up-langfuse
+    docker compose -f infra/docker-compose.pipeline.yml --env-file .env up -d --build --wait
+    just migrate
 
-down-pipeline flag="":
-    docker compose -f infra/docker-compose.pipeline.yml --env-file .env down
-    @if [ "{{flag}}" = "--full" ]; then just down-langfuse; fi
-    @if [ "{{flag}}" = "--full" ]; then just down-data; fi
+# just down-pipeline            -> stop pipeline + langfuse, keep volumes
+# just down-pipeline --full     -> also stop data
+# just down-pipeline "" -v      -> also delete volumes (pipeline + langfuse)
+# just down-pipeline --full -v  -> stop everything and delete all volumes
+down-pipeline flag="" volumes="":
+    docker compose -f infra/docker-compose.pipeline.yml --env-file .env down {{ if volumes == "-v" { "-v" } else { "" } }}
+    just down-langfuse "" {{volumes}}
+    @if [ "{{flag}}" = "--full" ]; then just down-data {{volumes}}; fi
 
 # App plane: API + web.
 # just up-app        -> app only (data plane must already be up)
@@ -36,9 +46,9 @@ up-app flag="":
     @if [ "{{flag}}" = "--full" ]; then just up-data; fi
     docker compose -f infra/docker-compose.app.yml --env-file .env --profile app up -d --build
 
-down-app flag="":
-    docker compose -f infra/docker-compose.app.yml --env-file .env --profile app down
-    @if [ "{{flag}}" = "--full" ]; then just down-data; fi
+down-app flag="" volumes="":
+    docker compose -f infra/docker-compose.app.yml --env-file .env --profile app down {{ if volumes == "-v" { "-v" } else { "" } }}
+    @if [ "{{flag}}" = "--full" ]; then just down-data {{volumes}}; fi
 
 # Langfuse plane: self-hosted LLM observability for filter/enrich.
 # just up-langfuse        -> langfuse only (data plane must already be up)
@@ -47,9 +57,9 @@ up-langfuse flag="":
     @if [ "{{flag}}" = "--full" ]; then just up-data; fi
     docker compose -f infra/docker-compose.langfuse.yml --env-file .env up -d --wait
 
-down-langfuse flag="":
-    docker compose -f infra/docker-compose.langfuse.yml --env-file .env down
-    @if [ "{{flag}}" = "--full" ]; then just down-data; fi
+down-langfuse flag="" volumes="":
+    docker compose -f infra/docker-compose.langfuse.yml --env-file .env down {{ if volumes == "-v" { "-v" } else { "" } }}
+    @if [ "{{flag}}" = "--full" ]; then just down-data {{volumes}}; fi
 
 # One-shot flow runs (pipeline plane must be up)
 extract:
@@ -85,7 +95,9 @@ deploy-flows:
     docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \
         uv run --package pipeline python -m pipeline.deployments
 
-# Schema migrations (Alembic), always run inside the pipeline worker container.
+# Schema migrations (Alembic). Runs automatically at the end of `up-pipeline`;
+# call directly to re-apply after pulling new migrations into an
+# already-running worker, without restarting it.
 migrate:
     docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \
         uv run --package pipeline alembic -c apps/pipeline/alembic.ini upgrade head
