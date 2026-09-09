@@ -108,6 +108,7 @@ version = "0.1.0"
 source = { editable = "apps/api" }
 dependencies = [
     { name = "fastapi" },
+    { name = "pipeline" },
     { name = "psycopg2-binary" },
     { name = "pydantic-ai" },
     { name = "pydantic-settings" },
@@ -120,6 +121,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.121.0" },
+    { name = "pipeline", editable = "apps/pipeline" },
     { name = "psycopg2-binary", specifier = ">=2.9.11" },
     { name = "pydantic-ai", specifier = ">=2.8.0" },
     { name = "pydantic-settings", specifier = ">=2.13.1" },

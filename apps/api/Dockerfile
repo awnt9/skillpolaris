@@ -7,6 +7,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY apps/pipeline/pyproject.toml apps/pipeline/
 COPY apps/api/pyproject.toml apps/api/
+COPY apps/pipeline/src ./apps/pipeline/src
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --package api

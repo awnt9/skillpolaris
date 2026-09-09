@@ -5,6 +5,7 @@ description = "SkillPolaris HTTP API"
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.121.0",
+    "pipeline",
     "psycopg2-binary>=2.9.11",
     "pydantic-ai>=2.8.0",
     "pydantic-settings>=2.13.1",
@@ -13,6 +14,9 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "uvicorn[standard]>=0.38.0",
 ]
+
+[tool.uv.sources]
+pipeline = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
