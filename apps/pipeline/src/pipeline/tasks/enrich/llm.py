@@ -63,3 +63,11 @@ class MetadataExtractor:
             if span is not None:
                 span.update(input=user_content, output=result.output.model_dump())
         return result.output
+
+    async def extract_async(self, *, title: str, description: str) -> JobOfferMetadata:
+        user_content = f"TITLE: {title}\n\n### JOB OFFER TEXT:\n{description}\n###"
+        with start_root_span("enrich") as span:
+            result = await self.agent.run(user_content)
+            if span is not None:
+                span.update(input=user_content, output=result.output.model_dump())
+        return result.output

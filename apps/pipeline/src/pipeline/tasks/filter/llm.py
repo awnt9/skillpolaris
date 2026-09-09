@@ -93,3 +93,30 @@ class FilterLlmGate:
             if span is not None:
                 span.update(input=user_content, output=result.output.model_dump())
         return result.output
+
+    async def decide_async(
+        self,
+        *,
+        title: str,
+        description_excerpt: str,
+        source: str | None = None,
+        keyword: str | None = None,
+    ) -> FilterLlmDecision:
+        meta_bits = []
+        if source:
+            meta_bits.append(f"source={source}")
+        if keyword:
+            meta_bits.append(f"keyword={keyword}")
+        meta = f"({' '.join(meta_bits)})\n" if meta_bits else ""
+
+        user_content = (
+            f"{meta}"
+            f"TITLE: {title}\n"
+            f"DESCRIPTION_EXCERPT:\n{description_excerpt}\n"
+        )
+
+        with start_root_span("filter") as span:
+            result = await self.agent.run(user_content)
+            if span is not None:
+                span.update(input=user_content, output=result.output.model_dump())
+        return result.output

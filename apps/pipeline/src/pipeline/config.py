@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     )
     filter_llm_model: str = Field(alias="FILTER_LLM_MODEL")
 
+    # Max in-flight LLM calls for filter/enrich/judge batches (asyncio.Semaphore
+    # bound). I/O-bound work, so this is a throughput knob, not a CPU one — tune
+    # down if the provider starts returning 429s.
+    llm_max_concurrency: int = Field(alias="LLM_MAX_CONCURRENCY", ge=1)
+
     judge_sample_size: int = Field(alias="JUDGE_SAMPLE_SIZE", ge=1)
     judge_sample_rate: float = Field(alias="JUDGE_SAMPLE_RATE", ge=0.0, le=1.0)
 

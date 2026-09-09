@@ -1,13 +1,72 @@
-"""Enrich runner: canonical job text → relational metadata in Postgres."""
+"""Enrich runner: canonical job text → relational metadata in Postgres.
+
+Extraction calls are I/O-bound, so the batch runs them concurrently, bounded
+by `LLM_MAX_CONCURRENCY`; Postgres writes stay synchronous and sequential in
+the original pending-list order once every call has resolved.
+"""
 
 from __future__ import annotations
 
+import asyncio
+from dataclasses import dataclass
+
 from pipeline.config import Settings, get_configuration
 from pipeline.observability import configure_tracing
+from pipeline.schemas.enrich import JobOfferMetadata
 from pipeline.storage.postgres import PostgresManager
 from pipeline.tasks.enrich.llm import MetadataExtractor
 from pipeline.tasks.enrich.stats import compute_role_stats
 from prefect import get_run_logger, task
+
+
+@dataclass
+class _ExtractOutcome:
+    metadata: JobOfferMetadata | None
+    error: Exception | None
+
+
+async def _extract_all(
+    extractor: MetadataExtractor,
+    canonical_jobs: list,
+    max_concurrency: int,
+    logger,
+) -> dict[int, _ExtractOutcome]:
+    """Run extraction concurrently, logging progress as each call resolves —
+    otherwise the whole concurrent phase is silent until the batch finishes."""
+    semaphore = asyncio.Semaphore(max_concurrency)
+    total = len(canonical_jobs)
+    done = 0
+
+    async def _one(canonical_job) -> tuple[int, _ExtractOutcome]:
+        nonlocal done
+        async with semaphore:
+            try:
+                metadata = await extractor.extract_async(
+                    title=canonical_job.title,
+                    description=canonical_job.description,
+                )
+                done += 1
+                logger.info(
+                    "Enrich llm progress %s/%s id=%s role=%s",
+                    done,
+                    total,
+                    canonical_job.id,
+                    metadata.standard_role,
+                )
+                return canonical_job.id, _ExtractOutcome(metadata=metadata, error=None)
+            except Exception as exc:  # noqa: BLE001 — per-offer boundary
+                done += 1
+                logger.warning(
+                    "Enrich llm progress %s/%s id=%s failed: %s",
+                    done,
+                    total,
+                    canonical_job.id,
+                    exc,
+                )
+                return canonical_job.id, _ExtractOutcome(metadata=None, error=exc)
+
+    results = await asyncio.gather(*(_one(job) for job in canonical_jobs))
+    return dict(results)
 
 
 def run_enrich(configuration: Settings) -> dict[str, int]:
@@ -34,12 +93,18 @@ def run_enrich(configuration: Settings) -> dict[str, int]:
             configuration.llm_model,
         )
 
+        outcomes = asyncio.run(
+            _extract_all(extractor, pending, configuration.llm_max_concurrency, logger)
+        )
+
         for canonical_job in pending:
             try:
-                metadata = extractor.extract(
-                    title=canonical_job.title,
-                    description=canonical_job.description,
-                )
+                outcome = outcomes[canonical_job.id]
+                if outcome.error is not None:
+                    raise outcome.error
+                metadata = outcome.metadata
+                assert metadata is not None
+
                 store.save_job_enrichment(canonical_job.id, metadata)
                 processed += 1
                 logger.info(

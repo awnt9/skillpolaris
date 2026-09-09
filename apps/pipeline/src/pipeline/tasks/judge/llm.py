@@ -65,6 +65,22 @@ class FilterJudge:
         result = self.agent.run_sync(user_content)
         return result.output
 
+    async def score_async(
+        self,
+        *,
+        title: str,
+        description_excerpt: str,
+        label: str,
+        confidence: float,
+    ) -> JudgeVerdict:
+        user_content = (
+            f"POSTING (classifier input):\nTITLE: {title}\n"
+            f"DESCRIPTION_EXCERPT:\n{description_excerpt}\n\n"
+            f"CLASSIFIER DECISION (output):\nlabel={label}, confidence={confidence}"
+        )
+        result = await self.agent.run(user_content)
+        return result.output
+
 
 class EnrichJudge:
     def __init__(self, *, base_url: str, api_key: str, model: str):
@@ -82,4 +98,14 @@ class EnrichJudge:
             f"EXTRACTED METADATA (output):\n{metadata_json}"
         )
         result = self.agent.run_sync(user_content)
+        return result.output
+
+    async def score_async(
+        self, *, title: str, description: str, metadata_json: str
+    ) -> JudgeVerdict:
+        user_content = (
+            f"POSTING (extractor input):\nTITLE: {title}\n\n{description}\n\n"
+            f"EXTRACTED METADATA (output):\n{metadata_json}"
+        )
+        result = await self.agent.run(user_content)
         return result.output

@@ -1,16 +1,82 @@
-"""Filter runner: fixed hygiene rules then cheap LLM gate."""
+"""Filter runner: fixed hygiene rules then cheap LLM gate.
+
+The LLM gate calls are I/O-bound (waiting on the provider's HTTP response),
+so the batch runs them concurrently, bounded by `LLM_MAX_CONCURRENCY`, rather
+than one at a time. Everything that touches Postgres stays synchronous and
+sequential, in the original pending-list order, after all the concurrent
+calls have resolved — the async phase only produces decisions/exceptions,
+it does not write anything itself.
+"""
 
 from __future__ import annotations
 
+import asyncio
 from collections import Counter
+from dataclasses import dataclass
 
 from pipeline.config import Settings, get_configuration
 from pipeline.observability import configure_tracing
+from pipeline.schemas.filter import FilterLlmDecision
 from pipeline.schemas.jobs import CanonicalJobOffer
 from pipeline.storage.postgres import PostgresManager
 from pipeline.tasks.filter.llm import FilterLlmGate
-from pipeline.tasks.filter.rules import apply_fixed_filters
+from pipeline.tasks.filter.rules import RuleOutcome, apply_fixed_filters
 from prefect import get_run_logger, task
+
+
+@dataclass
+class _LlmOutcome:
+    decision: FilterLlmDecision | None
+    error: Exception | None
+
+
+async def _decide_all(
+    gate: FilterLlmGate,
+    items: list[tuple[object, RuleOutcome]],
+    excerpt_chars: int,
+    max_concurrency: int,
+    logger,
+) -> dict[int, _LlmOutcome]:
+    """Run the gate concurrently for every rule-passing job, bounded by a semaphore.
+
+    Logs a progress line as each call resolves — without this, the whole
+    concurrent phase is silent until every call in the batch has returned,
+    which for a large batch can look hung even though it's working.
+    """
+    semaphore = asyncio.Semaphore(max_concurrency)
+    total = len(items)
+    done = 0
+
+    async def _one(raw_job, rules: RuleOutcome) -> tuple[int, _LlmOutcome]:
+        nonlocal done
+        excerpt = rules.cleaned_description[:excerpt_chars]
+        async with semaphore:
+            try:
+                decision = await gate.decide_async(
+                    title=rules.cleaned_title,
+                    description_excerpt=excerpt,
+                    source=raw_job.source,
+                    keyword=raw_job.keyword,
+                )
+                done += 1
+                logger.info(
+                    "Filter llm progress %s/%s id=%s label=%s conf=%.2f",
+                    done,
+                    total,
+                    raw_job.id,
+                    decision.label,
+                    decision.confidence,
+                )
+                return raw_job.id, _LlmOutcome(decision=decision, error=None)
+            except Exception as exc:  # noqa: BLE001 — per-offer boundary
+                done += 1
+                logger.warning(
+                    "Filter llm progress %s/%s id=%s failed: %s", done, total, raw_job.id, exc
+                )
+                return raw_job.id, _LlmOutcome(decision=None, error=exc)
+
+    results = await asyncio.gather(*(_one(raw_job, rules) for raw_job, rules in items))
+    return dict(results)
 
 
 def _resolve_llm_status(
@@ -62,14 +128,33 @@ def run_filter(configuration: Settings) -> dict[str, int]:
             configuration.filter_llm_confidence,
         )
 
+        rules_by_id: dict[int, RuleOutcome] = {}
+        llm_items: list[tuple[object, RuleOutcome]] = []
         for raw_job in pending:
             by_source[raw_job.source] += 1
+            rules = apply_fixed_filters(
+                title_raw=raw_job.title_raw,
+                description_raw=raw_job.description_raw,
+                min_description_chars=configuration.filter_min_description_chars,
+            )
+            rules_by_id[raw_job.id] = rules
+            if rules.ok:
+                llm_items.append((raw_job, rules))
+
+        llm_calls = len(llm_items)
+        outcomes = asyncio.run(
+            _decide_all(
+                gate,
+                llm_items,
+                configuration.filter_llm_excerpt_chars,
+                configuration.llm_max_concurrency,
+                logger,
+            )
+        )
+
+        for raw_job in pending:
+            rules = rules_by_id[raw_job.id]
             try:
-                rules = apply_fixed_filters(
-                    title_raw=raw_job.title_raw,
-                    description_raw=raw_job.description_raw,
-                    min_description_chars=configuration.filter_min_description_chars,
-                )
                 if not rules.ok:
                     store.update_raw_filter_status(raw_job.id, "rejected", "rules")
                     rejected += 1
@@ -82,16 +167,12 @@ def run_filter(configuration: Settings) -> dict[str, int]:
                     )
                     continue
 
-                excerpt = rules.cleaned_description[
-                    : configuration.filter_llm_excerpt_chars
-                ]
-                llm_calls += 1
-                decision = gate.decide(
-                    title=rules.cleaned_title,
-                    description_excerpt=excerpt,
-                    source=raw_job.source,
-                    keyword=raw_job.keyword,
-                )
+                outcome = outcomes[raw_job.id]
+                if outcome.error is not None:
+                    raise outcome.error
+                decision = outcome.decision
+                assert decision is not None
+
                 status = _resolve_llm_status(
                     label=decision.label,
                     confidence=decision.confidence,
