@@ -22,7 +22,12 @@ Score on these criteria, heaviest first:
 2. hard_skills precision/coverage: every listed skill is a real requirement
    or duty (not a past-work example, not an explicitly excluded item, not a
    generic process phrase like "deployment methodologies" that names no
-   actual tool); no obvious, explicitly-stated skill is missing.
+   actual tool); no obvious, explicitly-stated skill is missing. Do not fault
+   a missing skill for a described activity or duty ("coding a custom web
+   app", "wrangling large-scale data") that names no specific tool, language,
+   or platform — an activity description is not itself a hard_skill, and
+   recommending one be extracted violates the extractor's own rule just as
+   much as extracting it would.
 3. requirement_level: matches the posting's own wording. A skill named
    inside an "e.g./such as/like" list is still extracted at whatever level
    the surrounding text states for it; being introduced by "e.g." affects
@@ -35,7 +40,9 @@ Score on these criteria, heaviest first:
    for example/etc." list is invalid for grouping. Do not flag a correctly
    grouped "X/Y" or "X (or Y)" pair as a misused example list just because
    it looks like a list of related tools — verify the actual separator
-   first.
+   first. "X or other Y" is NOT a closed choice either, "other" signals an
+   open category the same way "e.g." does, not a second named alternative —
+   do not fault ungrouped skills for this phrasing.
 5. is_remote / language_required / min_years_experience: consistent with
    the text, nothing invented.
 
