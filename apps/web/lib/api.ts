@@ -1,7 +1,9 @@
 export type Stats = {
   sources: number;
+  postings: number;
   records: number;
   positions: number;
+  skills: number;
 };
 
 const INTERNAL_API_URL = process.env.API_INTERNAL_URL ?? "http://localhost:8000";

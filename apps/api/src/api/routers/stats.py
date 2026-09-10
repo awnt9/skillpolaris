@@ -10,6 +10,7 @@ router = APIRouter()
 def get_stats() -> dict[str, int]:
     with get_engine().connect() as conn:
         sources = conn.execute(text("SELECT COUNT(DISTINCT source) FROM raw_jobs")).scalar_one()
+        postings = conn.execute(text("SELECT COUNT(*) FROM raw_jobs")).scalar_one()
         records = conn.execute(text("SELECT COUNT(*) FROM canonical_jobs")).scalar_one()
         positions = conn.execute(
             text(
@@ -17,5 +18,12 @@ def get_stats() -> dict[str, int]:
                 "WHERE standard_role IS NOT NULL"
             )
         ).scalar_one()
+        skills = conn.execute(text("SELECT COUNT(*) FROM skills")).scalar_one()
 
-    return {"sources": sources, "records": records, "positions": positions}
+    return {
+        "sources": sources,
+        "postings": postings,
+        "records": records,
+        "positions": positions,
+        "skills": skills,
+    }
