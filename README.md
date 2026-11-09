@@ -39,8 +39,7 @@ make up-app                # API + web
 docker compose -f infra/docker-compose.data.yml --env-file .env up -d --wait
 docker compose -f infra/docker-compose.langfuse.yml --env-file .env up -d --wait
 docker compose -f infra/docker-compose.pipeline.yml --env-file .env up -d --build --wait
-docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker \
-  uv run --package pipeline alembic -c apps/pipeline/alembic.ini upgrade head
+docker compose -f infra/docker-compose.pipeline.yml --env-file .env exec pipeline-worker uv run --package pipeline alembic -c apps/pipeline/alembic.ini upgrade head
 docker compose -f infra/docker-compose.app.yml --env-file .env --profile app up -d --build
 ```
 
